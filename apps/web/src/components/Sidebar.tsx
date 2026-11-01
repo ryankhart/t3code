@@ -132,6 +132,7 @@ import {
   useThreadActions,
 } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
+import { useScratchProject } from "../hooks/useScratchProject";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
@@ -966,6 +967,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
+  const newThreadButtonTarget = useClientSettings((s) => s.newThreadButtonTarget);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -1032,6 +1034,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const newThreadContext = useHandleNewThread();
   // Row callbacks capture only the handler; the rest of the context changes with the route.
   const { handleNewThread } = newThreadContext;
+  const { scratchEnvironmentId, startScratchThread } = useScratchProject();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
   const toggleThreadSelection = useThreadSelectionStore((s) => s.toggleThread);
@@ -3082,8 +3085,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     : null;
 
   const handleNewThreadClick = (event?: ReactMouseEvent) => {
+    const shiftKey = event?.shiftKey ?? false;
+    const scratchTarget =
+      !shiftKey && newThreadButtonTarget === "no-project"
+        ? scratchEnvironmentId(
+            newThreadContext.activeThread?.environmentId ??
+              newThreadContext.activeDraftThread?.environmentId ??
+              null,
+          )
+        : null;
+    if (scratchTarget !== null) {
+      if (isMobile) setOpenMobile(false);
+      void startScratchThread(scratchTarget);
+      return;
+    }
     const scopedProjectRef = resolveScopedNewThreadProjectRef({
-      shiftKey: event?.shiftKey ?? false,
+      shiftKey,
       // The folder sidebar's header button always opens the picker.
       scopedProjectGroups: boringSidebarEnabled ? [] : scopedProjectGroups,
       viewed: newThreadContext.activeThread ?? newThreadContext.activeDraftThread,
@@ -3094,11 +3111,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       return;
     }
     if (
-      shouldCreateNewThreadInCurrentProject(
-        event?.shiftKey ?? false,
-        scopeGroups.length,
-        projectGroups.length,
-      )
+      shouldCreateNewThreadInCurrentProject(shiftKey, scopeGroups.length, projectGroups.length)
     ) {
       if (isMobile) setOpenMobile(false);
       // With no current or open project, such as when every project is archived, pick one.

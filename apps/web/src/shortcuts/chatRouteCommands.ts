@@ -122,6 +122,17 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     event.stopPropagation();
   };
 
+  const startWithoutProject = (event: KeyboardEvent): boolean => {
+    const { activeThread, activeDraftThread } = readThreadContext();
+    const environmentId = scratch.scratchEnvironmentId(
+      activeThread?.environmentId ?? activeDraftThread?.environmentId ?? null,
+    );
+    if (environmentId === null) return false;
+    claim(event);
+    void scratch.startScratchThread(environmentId);
+    return true;
+  };
+
   const startNewLocal: CommandHandler = (event) => {
     claim(event);
     // With no current or open project, such as when every project is archived, pick one.
@@ -149,13 +160,7 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     {
       "chat.newLocal": startNewLocal,
       "chat.newWithoutProject": (event) => {
-        const { activeThread, activeDraftThread } = readThreadContext();
-        const environmentId = scratch.scratchEnvironmentId(
-          activeThread?.environmentId ?? activeDraftThread?.environmentId ?? null,
-        );
-        if (environmentId === null) return;
-        claim(event);
-        void scratch.startScratchThread(environmentId);
+        startWithoutProject(event);
       },
       "chat.new": (event) => {
         if (chatNewThreadStarter) {
@@ -163,6 +168,8 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
           void chatNewThreadStarter();
           return;
         }
+        const { newThreadButtonTarget } = getClientSettings();
+        if (newThreadButtonTarget === "no-project" && startWithoutProject(event)) return;
         const groups = readProjectGroups();
         if (
           !shouldCreateNewThreadInCurrentProject(
