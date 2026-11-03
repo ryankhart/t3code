@@ -49,6 +49,7 @@ import { m } from "../i18n/messages.ts";
 import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import { makeQuitShortcutHandler } from "./QuitHold.ts";
 import { copyContextMenuImage } from "./ContextMenuImage.ts";
+import { contextMenuWebSearch } from "./ContextMenuSearch.ts";
 
 const TITLEBAR_HEIGHT = 40;
 
@@ -845,6 +846,19 @@ export const make = Effect.gen(function* () {
             enabled: params.editFlags.canSelectAll,
           },
         );
+
+        const webSearch = contextMenuWebSearch(params.selectionText);
+        if (webSearch) {
+          menuTemplate.push(
+            { type: "separator" },
+            {
+              label: webSearch.label,
+              click: () => {
+                void runPromise(electronShell.openExternal(webSearch.url));
+              },
+            },
+          );
+        }
 
         void runPromise(
           electronMenu.popupTemplate({
