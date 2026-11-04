@@ -1326,6 +1326,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "read-aloud-voice",
+    title: "Read-aloud voice",
+    to: "/settings/general",
+    searchTerms: ["read aloud speak speech tts text to speech voice edge natural ava speaker"],
+    desktopOnly: true,
+  },
+  {
     id: "external-terminal",
     title: "Terminal app",
     to: "/settings/general",
