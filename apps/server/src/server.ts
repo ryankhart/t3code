@@ -174,6 +174,7 @@ import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as UpstreamTake from "./pullRequest/UpstreamTake.ts";
 import * as PullRequestRanking from "./pullRequest/PullRequestRanking.ts";
+import * as NextPromptSuggestions from "./orchestration-v2/NextPromptSuggestions.ts";
 import * as ReviewService from "./review/ReviewService.ts";
 import * as SourceControlProviderRegistry from "./sourceControl/SourceControlProviderRegistry.ts";
 import * as PullRequestReadCache from "./pullRequest/PullRequestReadCache.ts";
@@ -843,7 +844,12 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
     Layer.provideMerge(layerSourceControlProviderRegistry),
     // Merged with Git rather than added beside it: both want text generation.
     Layer.provideMerge(
-      Layer.mergeAll(layerPullRequestRanking, layerUpstreamTake).pipe(Layer.provideMerge(layerGit)),
+      Layer.mergeAll(
+        layerPullRequestRanking,
+        layerUpstreamTake,
+        // Custom build: next-prompt suggestion buttons; needs text generation like ranking.
+        NextPromptSuggestions.layer.pipe(Layer.provide(TextGeneration.layer)),
+      ).pipe(Layer.provideMerge(layerGit)),
     ),
     // Split: Effect's pipe takes at most 20 arguments.
   )
