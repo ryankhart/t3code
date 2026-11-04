@@ -114,6 +114,7 @@ import { nativeLanguageName, SYSTEM_LANGUAGE } from "@t3tools/client-runtime/loc
 import { SUPPORTED_LOCALES } from "../../i18n/locales";
 import { DesktopNotificationsSettings } from "./DesktopNotificationsSettings";
 import { ExternalTerminalSetting } from "./ExternalTerminalSetting";
+import { ReadAloudSetting } from "./ReadAloudSetting";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
@@ -520,6 +521,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.newThreadButtonTarget !== DEFAULT_UNIFIED_SETTINGS.newThreadButtonTarget
       ? ["New thread button"]
       : []),
+    ...(settings.readAloudVoice !== DEFAULT_UNIFIED_SETTINGS.readAloudVoice
+      ? ["Read-aloud voice"]
+      : []),
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
       ? ["Working section"]
       : []),
@@ -718,6 +722,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       newThreadButtonTarget: DEFAULT_UNIFIED_SETTINGS.newThreadButtonTarget,
+      readAloudVoice: DEFAULT_UNIFIED_SETTINGS.readAloudVoice,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleScope: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleScope,
@@ -1288,6 +1293,7 @@ export function GeneralSettingsPanel() {
       </SettingsSection>
 
       <ExternalTerminalSetting />
+      <ReadAloudSetting />
     </SettingsPageContainer>
   );
 }
