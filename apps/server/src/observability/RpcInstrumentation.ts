@@ -38,6 +38,7 @@ const RPC_AGGREGATES = {
   [ORCHESTRATION_V2_WS_METHODS.subscribeThread]: "orchestrationV2",
   [ORCHESTRATION_V2_WS_METHODS.subscribeCommandOutput]: "orchestrationV2",
   [MT_ORCHESTRATION_WS_METHODS.getAgentHistory]: "orchestration",
+  [ORCHESTRATION_V2_WS_METHODS.subscribePromptSuggestion]: "orchestrationV2",
   [WS_METHODS.projectsMutate]: "orchestration",
   [WS_METHODS.serverProbe]: "server",
   [WS_METHODS.serverGetConfig]: "server",
