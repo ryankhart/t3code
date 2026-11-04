@@ -22,6 +22,8 @@ import {
   useQuietThreadShell,
 } from "../../state/entities";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { MessageReadAloudButton } from "./MessageReadAloudButton";
+import { useReadAloudState } from "~/readAloud/readAloudPlayer";
 import { AssistantCitationSource } from "./AssistantCitationSource";
 import { splitInlineVisualizations } from "@t3tools/shared/inlineVisualization";
 import { InlineVisualization } from "./InlineVisualization";
@@ -265,12 +267,14 @@ function AssistantMessageMeta({
   alwaysVisible?: boolean;
 }) {
   const ctx = use(TimelineRowCtx);
+  // Keep the stop button visible while this reply is being read aloud.
+  const readingAloud = useReadAloudState().messageId === message.id;
 
   return (
     <div
       className={cn(
         "flex items-center gap-2 text-xs tabular-nums transition-opacity duration-200",
-        alwaysVisible
+        alwaysVisible || readingAloud
           ? "opacity-100"
           : "opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover/assistant:opacity-100",
         className,
@@ -377,7 +381,12 @@ function AssistantCopyButton({
     return null;
   }
 
-  return <MessageCopyButton text={assistantCopyState.text ?? ""} variant="ghost" />;
+  return (
+    <>
+      <MessageCopyButton text={assistantCopyState.text ?? ""} variant="ghost" />
+      <MessageReadAloudButton messageId={message.id} text={assistantCopyState.text ?? ""} />
+    </>
+  );
 }
 
 export function ProposedPlanTimelineRow({

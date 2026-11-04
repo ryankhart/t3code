@@ -166,3 +166,5 @@ export const TAKE_LEGACY_LOCAL_STORAGE_CHANNEL = "desktop:take-legacy-local-stor
 export const COMPLETE_LEGACY_LOCAL_STORAGE_CHANNEL = "desktop:complete-legacy-local-storage";
 
 export const RESTART_AUDIO_SERVICE_CHANNEL = "desktop:restart-audio-service";
+export const READ_ALOUD_SYNTHESIZE_CHANNEL = "desktop:read-aloud-synthesize";
+export const READ_ALOUD_LIST_VOICES_CHANNEL = "desktop:read-aloud-list-voices";
