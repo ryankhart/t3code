@@ -25,6 +25,7 @@ const OpenCodeTextGenerationOperation = Schema.Literals([
   "generateBranchName",
   "generateThreadTitle",
   "rankPullRequests",
+  "suggestNextPrompts",
   "generateReviewGuide",
   "generateTranscriptionPostProcessing",
 ]);
