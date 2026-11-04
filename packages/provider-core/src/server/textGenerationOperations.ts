@@ -5,6 +5,10 @@ import { type ChatAttachment, type ModelSelection, TextGenerationError } from "@
 import { formatGeneratedBranchName, sanitizeFeatureBranchName } from "@t3tools/shared/git";
 import { extractJsonObject } from "@t3tools/shared/schemaJson";
 
+import {
+  buildNextPromptSuggestionsPrompt,
+  sanitizeNextPromptSuggestions,
+} from "./nextPromptSuggestions.ts";
 import type { ProviderTextGeneration } from "./textGeneration.ts";
 import {
   buildBranchNamePrompt,
@@ -213,6 +217,19 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     });
   });
 
+  // Custom build: next-prompt suggestion buttons.
+  const suggestNextPrompts: NonNullable<ProviderTextGeneration["suggestNextPrompts"]> = Effect.fn(
+    `${name}.suggestNextPrompts`,
+  )(function* (input) {
+    const generated = yield* run({
+      operation: "suggestNextPrompts",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      ...buildNextPromptSuggestionsPrompt(input),
+    });
+    return { suggestions: sanitizeNextPromptSuggestions(generated.suggestions, input.commands) };
+  });
+
   return {
     generateCommitMessage,
     generatePrContent,
@@ -221,5 +238,7 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     rankPullRequests,
     generateReviewGuide,
     generateTranscriptionPostProcessing,
+
+    suggestNextPrompts,
   } satisfies ProviderTextGeneration;
 }
