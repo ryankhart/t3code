@@ -307,6 +307,7 @@ import { ComposerControlsBar } from "./ComposerControlsBar";
 import { composerCommandKeyHandler } from "./composerCommandKey";
 import { promptSuggestionToAccept, usePromptSuggestion } from "./usePromptSuggestion";
 import { useFreshSessionArmed } from "./freshSessionArms";
+import { NextPromptSuggestionChips, useNextPromptChips } from "./NextPromptSuggestionChips";
 
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
   const armed = Date.now() <= deadline.current;
@@ -2556,7 +2557,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // After /clear the next message starts a fresh session that cannot see what the suggestion refers to.
   const freshSessionArmed = useFreshSessionArmed(scopedThreadKey(routeThreadRef));
   // Offered only where the default placeholder would show, so it never hides a pending question.
-  const offeredPromptSuggestion =
+  const promptSuggestionAllowed =
     phase !== "running" &&
     !isSendBusy &&
     !freshSessionArmed &&
@@ -2565,9 +2566,27 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !isComposerApprovalState &&
     !activePendingProgress &&
     !projectSelectionRequired &&
-    !showProviderUnavailable
-      ? promptSuggestion
-      : null;
+    !showProviderUnavailable;
+  // Custom build: next-prompt buttons. They replace the grey suggestion; Tab takes the first one
+  // and Escape dismisses them all.
+  const { chips: nextPromptChips, dismiss: dismissNextPromptChips } = useNextPromptChips({
+    environmentId,
+    thread: activeThread,
+    builtInSuggestion: promptSuggestion,
+    skills: selectedProviderSkills,
+    slashCommands: selectedProviderSlashCommands,
+  });
+  const offeredNextPromptChips =
+    promptSuggestionAllowed && prompt.length === 0 ? nextPromptChips : [];
+  const offeredPromptSuggestion = promptSuggestionAllowed
+    ? (nextPromptChips[0]?.insertText ?? promptSuggestion)
+    : null;
+  const showPromptSuggestionPlaceholder =
+    offeredPromptSuggestion !== null && nextPromptChips.length === 0;
+  const dismissPromptSuggestions = () => {
+    dismissPromptSuggestion();
+    dismissNextPromptChips();
+  };
 
   const onComposerCommandKey = (key: string, event: KeyboardEvent, isTaskItem?: boolean) => {
     if (key === "Escape" && composerSendHeld && !event.isComposing) {
@@ -2611,7 +2630,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       applyPromptReplacement,
       submitComposer,
       promptSuggestion: offeredPromptSuggestion,
-      dismissPromptSuggestion,
+      dismissPromptSuggestion: dismissPromptSuggestions,
     })(key, event, isTaskItem);
   };
 
@@ -3694,6 +3713,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       data-chat-composer-form="true"
       {...threadContextDropTargetProps()}
     >
+      <NextPromptSuggestionChips
+        chips={offeredNextPromptChips}
+        showTabHint
+        onPick={(chip) => {
+          if (promptRef.current.length > 0) return;
+          applyPromptReplacement(0, 0, chip.insertText, { focusEditorAfterReplace: true });
+        }}
+      />
       <ComposerBanner.Dock>
         <ComposerBanner.Column>
           <ComposerBannerStack items={shelfItems} />
@@ -3975,10 +4002,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             ? gt("Choose a project above to start a thread")
                             : showProviderUnavailable
                               ? gt("Enable a provider in Settings to send a message")
-                              : (offeredPromptSuggestion ?? m(DEFAULT_COMPOSER_PLACEHOLDER))
+                              : showPromptSuggestionPlaceholder
+                                ? (offeredPromptSuggestion ?? m(DEFAULT_COMPOSER_PLACEHOLDER))
+                                : m(DEFAULT_COMPOSER_PLACEHOLDER)
                     }
                     placeholderSuffix={
-                      offeredPromptSuggestion !== null ? (
+                      showPromptSuggestionPlaceholder && offeredPromptSuggestion !== null ? (
                         // The placeholder ignores pointer events so clicks reach the editor; only this hint opts back in.
                         <button
                           type="button"
