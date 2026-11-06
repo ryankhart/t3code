@@ -2585,8 +2585,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !activePendingProgress &&
     !projectSelectionRequired &&
     !showProviderUnavailable;
-  // Custom build: next-prompt buttons. They replace the grey suggestion; Tab takes the first one
-  // and Escape dismisses them all.
+  // Custom build: next-prompt buttons. They replace the grey suggestion; Tab takes the first one,
+  // further Tabs cycle through the rest, and Escape dismisses them all.
   const { chips: nextPromptChips, dismiss: dismissNextPromptChips } = useNextPromptChips({
     environmentId,
     thread: activeThread,
@@ -2594,8 +2594,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     skills: selectedProviderSkills,
     slashCommands: selectedProviderSlashCommands,
   });
+  // The buttons stay while the composer is empty or holds one of them unchanged; any edit hides them.
+  const activeNextPromptChipIndex = nextPromptChips.findIndex((chip) => chip.insertText === prompt);
   const offeredNextPromptChips =
-    promptSuggestionAllowed && prompt.length === 0 ? nextPromptChips : [];
+    promptSuggestionAllowed && (prompt.length === 0 || activeNextPromptChipIndex !== -1)
+      ? nextPromptChips
+      : [];
   const offeredPromptSuggestion = promptSuggestionAllowed
     ? (nextPromptChips[0]?.insertText ?? promptSuggestion)
     : null;
@@ -2649,6 +2653,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       submitComposer,
       promptSuggestion: offeredPromptSuggestion,
       dismissPromptSuggestion: dismissPromptSuggestions,
+      promptSuggestionCycle: offeredNextPromptChips.map((chip) => chip.insertText),
     })(key, event, isTaskItem);
   };
 
@@ -3756,9 +3761,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       <NextPromptSuggestionChips
         chips={offeredNextPromptChips}
         showTabHint
+        activeIndex={activeNextPromptChipIndex}
         onPick={(chip) => {
-          if (promptRef.current.length > 0) return;
-          applyPromptReplacement(0, 0, chip.insertText, { focusEditorAfterReplace: true });
+          const current = promptRef.current;
+          // Only an empty box or an untouched suggestion is replaced, never the person's own text.
+          if (current.length > 0 && !nextPromptChips.some((c) => c.insertText === current)) return;
+          applyPromptReplacement(0, current.length, chip.insertText, {
+            focusEditorAfterReplace: true,
+          });
         }}
       />
       <ComposerBanner.Dock>
