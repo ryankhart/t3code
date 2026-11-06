@@ -4749,8 +4749,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const pendingRequests = projection.runtimeRequests.filter(
         (request) => request.status === "pending",
       );
+      // Approvals still need a decision. A question the turn is waiting on is
+      // dismissed unanswered and its turn stopped, so Settle works mid-question.
       const blockingRequestExists = pendingRequests.some(
-        (request) => request.kind !== "user_input" || request.responseCapability.type !== "message",
+        (request) => request.kind !== "user_input",
+      );
+      const stopsForQuestion = pendingRequests.some(
+        (request) => request.kind === "user_input" && request.responseCapability.type !== "message",
       );
       // Settling detaches the provider session, which ends the work running inside it. Hold for
       // the work auto-settle waits on. Delegated tasks run in their own thread and survive.
@@ -4768,8 +4773,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           }),
         );
       const blocker = blockingRequestExists
-        ? "is waiting on an approval or question. Answer it before settling."
-        : runningRunExists
+        ? "is waiting on an approval. Answer it before settling."
+        : runningRunExists && !stopsForQuestion
           ? "is still running. Stop it before settling."
           : queuedMessageExists
             ? "has a queued message. Send it or remove it from the queue before settling."
@@ -4785,6 +4790,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
 
       for (const request of pendingRequests) {
+        // A question that can't be answered any more is left to Stop below.
+        if (request.responseCapability.type === "not_resumable") continue;
         yield* dispatchRuntimeRequestRespond(
           {
             type: "runtime-request.respond",
@@ -4792,6 +4799,18 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             threadId: command.threadId,
             requestId: request.id,
             decision: "cancel",
+          },
+          events,
+          effects,
+        );
+      }
+      if (stopsForQuestion && runningRunExists) {
+        yield* dispatchThreadStop(
+          {
+            type: "thread.stop",
+            commandId: command.commandId,
+            threadId: command.threadId,
+            reason: "Settled while waiting on a question.",
           },
           events,
           effects,
