@@ -52,7 +52,7 @@ import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
-import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
+import { canTurnThreadIntoProject, threadMoveTargets, useThreadActions } from "./useThreadActions";
 
 function failureToast(title: string, error: unknown) {
   toastManager.add(
@@ -94,6 +94,7 @@ export function useThreadActionMenu(input: {
     deleteThread,
     markThreadUnread,
     turnThreadIntoProject,
+    moveThreadToProject,
   } = useThreadActions();
   const regenerateThreadTitle = useOrchestrationCommand(threadEnvironment.regenerateTitle, {
     reportFailure: false,
@@ -152,6 +153,7 @@ export function useThreadActionMenu(input: {
       snoozePresets,
       canShareWithGuest,
       canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+      moveTargets: threadMoveTargets(threadRef),
     });
     const run = async (action: ThreadActionMenuId) => {
       const api = readLocalApi();
@@ -166,6 +168,22 @@ export function useThreadActionMenu(input: {
           m(msg("Thread action unavailable")),
           new Error(m(msg("This connection cannot change threads."))),
         );
+        return;
+      }
+      if (action.startsWith("move-to-project:")) {
+        const result = await moveThreadToProject(
+          threadRef,
+          action.slice("move-to-project:".length),
+        );
+        if (result._tag === "Success") {
+          toastManager.add({
+            type: "success",
+            title: "Moved to project",
+            description: thread.title,
+          });
+        } else if (!isAtomCommandInterrupted(result)) {
+          failureToast("Could not move thread to the project", squashAtomCommandFailure(result));
+        }
         return;
       }
       if (action.startsWith("snooze:")) {
