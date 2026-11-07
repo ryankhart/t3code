@@ -572,6 +572,7 @@ type MessagesTimelineRowContent =
       createdAt: string;
       runId: RunId;
       label: string;
+      stepCount?: number;
       expanded: boolean;
     }
   | {
@@ -748,6 +749,8 @@ interface TurnFold {
   /** Every entry in the segment, including the cards a fold never hides. */
   entryIds: ReadonlySet<string>;
   label: string;
+  /** Tool calls and commands the fold hides, shown as "· 23 steps". */
+  stepCount: number;
 }
 
 interface SupersededAttemptFold {
@@ -1235,6 +1238,13 @@ function deriveTurnFolds(input: {
     // so each segment opens on its own.
     const segmentHiddenIds = (entries: ReadonlyArray<TimelineEntry>) =>
       new Set(entries.flatMap((entry) => (hiddenEntryIds.has(entry.id) ? [entry.id] : [])));
+    const segmentStepCount = (entries: ReadonlyArray<TimelineEntry>) =>
+      entries.filter(
+        (entry) =>
+          entry.kind === "work" &&
+          hiddenEntryIds.has(entry.id) &&
+          !timelineEntryIsCompaction(entry),
+      ).length;
     const firstSegment = group.entries.slice(0, group.steerSegments[0]?.startIndex);
     foldsByAnchorEntryId.set(group.anchorEntryId, {
       runId,
@@ -1243,6 +1253,7 @@ function deriveTurnFolds(input: {
       hiddenEntryIds: segmentHiddenIds(firstSegment),
       entryIds: new Set(firstSegment.map((entry) => entry.id)),
       label,
+      stepCount: segmentStepCount(firstSegment),
     });
     for (const [index, { startIndex, steer }] of group.steerSegments.entries()) {
       const entries = group.entries.slice(startIndex, group.steerSegments[index + 1]?.startIndex);
@@ -1260,6 +1271,7 @@ function deriveTurnFolds(input: {
         hiddenEntryIds: segmentHiddenIds(entries),
         entryIds: new Set(entries.map((entry) => entry.id)),
         label: segmentMs !== null ? `Continued for ${formatDuration(segmentMs)}` : "Continued",
+        stepCount: segmentStepCount(entries),
       });
     }
   }
@@ -1908,6 +1920,7 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: turnFold.createdAt,
         runId: turnFold.runId,
         label: turnFold.label,
+        ...(turnFold.stepCount > 0 ? { stepCount: turnFold.stepCount } : {}),
         expanded: input.expandedRunIds?.has(turnFold.runId) ?? false,
       });
     }
