@@ -76,6 +76,7 @@ import type { SidebarThreadSummary } from "../../types";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
 import { textDirection } from "~/textDirection";
+import { observeVisibleAnimation } from "~/lib/visibleAnimation";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import {
   animateSidebarLayoutChanges,
@@ -1041,8 +1042,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     ? "text-muted-foreground"
                     : "text-secondary-label/70",
             ),
-        isRegeneratingTitle && "opacity-55",
+        isRegeneratingTitle && "thread-title-regenerating",
       )}
+      ref={isRegeneratingTitle ? observeVisibleAnimation : undefined}
       dir={textDirection(thread.title)}
     >
       {thread.title}
@@ -1738,8 +1740,9 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                     ? "font-normal text-secondary-label/70 group-hover/sidebar-row:text-foreground"
                     : "font-medium text-foreground",
                   (props.isHighlighted || props.isRouteActive) && "text-foreground",
-                  thread.titleRegeneration != null && "opacity-55",
+                  thread.titleRegeneration != null && "thread-title-regenerating",
                 )}
+                ref={thread.titleRegeneration != null ? observeVisibleAnimation : undefined}
               >
                 {thread.title}
               </span>
