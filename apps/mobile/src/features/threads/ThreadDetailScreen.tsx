@@ -141,6 +141,11 @@ import {
 import { assistantCitationDraftWithinLimit } from "../../lib/composerContext";
 import { serializeAssistantCitation } from "@t3tools/shared/assistantCitations";
 import type { AssistantCitation } from "@t3tools/contracts";
+import {
+  appendHtmlRenderComposeText,
+  onHtmlRenderCompose,
+  type HtmlRenderComposeRequest,
+} from "./htmlRenderCompose";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import {
   ANDROID_READING_MAX_WIDTH,
@@ -1471,6 +1476,19 @@ function ThreadDetailBody(
       composerEditorRef.current?.setSelection({ start: nextDraft.length, end: nextDraft.length });
     });
   };
+
+  // Custom build: a page's own button (t3Compose) appends to this thread's message box. It doesn't
+  // focus the box: the keyboard would cover a page with several pick buttons after the first.
+  const appendHtmlRenderText = useEffectEvent((request: HtmlRenderComposeRequest) => {
+    if (props.draftMode || request.threadKey !== selectedThreadKey) return false;
+    const draftKey = props.composerDraftKey ?? selectedThreadKey;
+    props.onChangeDraftMessage(
+      appendHtmlRenderComposeText(getComposerDraftSnapshot(draftKey).text, request.text),
+    );
+    return true;
+  });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to inline pages in this thread handing text to the message box
+  useEffect(() => onHtmlRenderCompose((request) => appendHtmlRenderText(request)), []);
 
   const handleScrollToEnd = () => {
     void Haptics.selectionAsync();

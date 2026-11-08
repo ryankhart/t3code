@@ -13,7 +13,13 @@ import {
 } from "@t3tools/shared/htmlRender";
 import { T, useGT } from "gt-react-native";
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, View, type ColorValue } from "react-native";
+import {
+  Platform,
+  Pressable,
+  View,
+  type ColorValue,
+  type GestureResponderEvent,
+} from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
@@ -21,6 +27,14 @@ import { FilePreviewModal, type FilePreviewSource } from "../../components/ui/Fi
 import { AppText as Text } from "../../components/ui/AppText";
 import { mobileHtmlRenderTheme } from "../../lib/htmlRenderTheme";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
+import { scopedThreadKey } from "../../lib/scopedEntities";
+import {
+  createHtmlRenderComposeToken,
+  createHtmlRenderTapGate,
+  htmlRenderComposeScript,
+  readHtmlRenderComposeMessage,
+  requestHtmlRenderCompose,
+} from "./htmlRenderCompose";
 import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { webViewDecelerationRate } from "../../lib/webViewDecelerationRate";
@@ -99,9 +113,25 @@ export function HtmlRenderWebView(props: {
   readonly title: string;
   readonly nested: boolean;
   readonly onLoadError?: () => void;
+  /** Custom build: text the page's `t3Compose(text)` hands to the message box after a tap. */
+  readonly onCompose?: (text: string) => void;
 }) {
   const theme = useHtmlRenderTheme();
   const openLink = useOpenPullRequest();
+  // Only a view that composes needs a token; whether it composes is fixed by its call site.
+  const [composeToken] = useState(() =>
+    props.onCompose === undefined ? null : createHtmlRenderComposeToken(),
+  );
+  const [tapGate] = useState(createHtmlRenderTapGate);
+  const composes = composeToken !== null && props.onCompose !== undefined;
+  const touchPoint = (event: GestureResponderEvent) => ({
+    x: event.nativeEvent.pageX,
+    y: event.nativeEvent.pageY,
+    at: Date.now(),
+  });
+  const compose = (texts: readonly string[]) => {
+    for (const text of texts) props.onCompose?.(text);
+  };
   const [initialTheme] = useState(theme);
   const [generation, setGeneration] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -131,6 +161,12 @@ export function HtmlRenderWebView(props: {
   const scrollable = !props.nested || overflow.x || overflow.y;
   return (
     <View
+      // Raw touches reach this wrapper even when the web view handles them. A page may only fill
+      // the message box just after a tap (a touch that barely moved), not on load, on its own
+      // timer or during a scroll.
+      onTouchStart={composes ? (event) => tapGate.touchStart(touchPoint(event)) : undefined}
+      onTouchEnd={composes ? (event) => compose(tapGate.touchEnd(touchPoint(event))) : undefined}
+      onTouchCancel={composes ? () => tapGate.touchCancel() : undefined}
       style={
         props.nested
           ? { flex: 1 }
@@ -180,6 +216,9 @@ export function HtmlRenderWebView(props: {
             ? OVERFLOW_SCRIPT + HTML_RENDER_NATIVE_OPEN_IMAGE_SCRIPT
             : HTML_RENDER_NATIVE_OPEN_IMAGE_SCRIPT
         }
+        {...(composes
+          ? { injectedJavaScriptBeforeContentLoaded: htmlRenderComposeScript(composeToken) }
+          : {})}
         onMessage={(event: WebViewMessageEvent) => {
           const message = parseMessage(event.nativeEvent.data);
           const image = imagePreviewSource(message);
@@ -188,7 +227,14 @@ export function HtmlRenderWebView(props: {
             return;
           }
           const next = props.nested ? readOverflowMessage(message) : null;
-          if (next !== null) setOverflow(next);
+          if (next !== null) {
+            setOverflow(next);
+            return;
+          }
+          const request = composes
+            ? readHtmlRenderComposeMessage(event.nativeEvent.data, composeToken)
+            : undefined;
+          if (request !== undefined) compose(tapGate.request(request.text, Date.now()));
         }}
       />
       <FilePreviewModal source={preview} onRequestClose={() => setPreview(null)} />
@@ -279,6 +325,12 @@ export function ThreadHtmlRender(props: {
             title={title}
             nested
             onLoadError={handleLoadError}
+            onCompose={(text) =>
+              requestHtmlRenderCompose({
+                threadKey: scopedThreadKey(props.environmentId, props.threadId),
+                text,
+              })
+            }
           />
         ) : failed || asset._tag === "Failure" ? (
           <Pressable
