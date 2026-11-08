@@ -113,6 +113,13 @@ import { ComposerCommandPopover } from "./ComposerCommandPopover";
 import { ComposerPopoverAnchor } from "./ComposerPopoverAnchor";
 import { ComposerQueuedEditAttachments } from "./ComposerQueuedEdit";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
+import { NextPromptSuggestionChips, useNextPromptChips } from "./NextPromptSuggestionChips";
+import {
+  nextPromptChipDraft,
+  nextPromptChipsAllowed,
+  visibleNextPromptChips,
+  type NextPromptChip,
+} from "./nextPromptChips";
 import type { ComposerEnvironmentCandidate } from "@t3tools/client-runtime/composerThreadItems";
 import { offersLinkedEnvironments } from "@t3tools/client-runtime/link-request";
 import {
@@ -137,6 +144,7 @@ export const COMPOSER_COLLAPSED_CHROME = 60;
 export const THREAD_COMPOSER_BOTTOM_GUTTER = COMPOSER_BOTTOM_GUTTER;
 
 const NO_MACHINES: ReadonlyArray<ComposerEnvironmentCandidate> = [];
+const NO_NEXT_PROMPT_CHIPS: ReadonlyArray<NextPromptChip> = [];
 
 export interface ThreadComposerProps {
   readonly isDraft?: boolean;
@@ -514,6 +522,53 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     sendBlockedReason === null &&
     !modelUnavailable;
 
+  // Custom build: next-prompt buttons after a run finishes, only where an empty composer is
+  // waiting for the next message (never over a pending question, approval or plan).
+  const nextPromptChips = useNextPromptChips({
+    environmentId: props.environmentId,
+    thread: props.isDraft ? null : props.selectedThread,
+    enabled: props.serverConfig?.settings.promptSuggestionsEnabled === true,
+    provider: selectedProviderStatus,
+    configLoaded: props.serverConfig !== null,
+  });
+  // The run a message was last sent after: its buttons stay hidden even in the moment between
+  // the outbox emptying and the server reporting the new run.
+  const [sentAfterRunId, setSentAfterRunId] = useState<string | null>(null);
+  const latestRunId = props.selectedThread.latestRun?.runId ?? null;
+  const showNextPromptChips = nextPromptChipsAllowed({
+    isDraft: props.isDraft === true,
+    sentSinceLatestRun: latestRunId !== null && sentAfterRunId === latestRunId,
+    canOperateThread: props.canOperateThread,
+    threadBusy: props.activeThreadBusy,
+    queuedMessageCount: props.queueCount,
+    editingQueuedMessage: queuedEdit !== null,
+    submissionLocked: isSubmissionLocked,
+    voiceInputPresented: isVoiceInputPresented,
+    modelUnavailable,
+    attachmentCount: draftAttachments.length,
+    hasPendingApprovals: props.selectedThread.hasPendingApprovals,
+    hasPendingUserInput: props.selectedThread.hasPendingUserInput,
+    hasActionableProposedPlan: props.selectedThread.hasActionableProposedPlan,
+  });
+  const offeredNextPrompts = visibleNextPromptChips(
+    showNextPromptChips ? nextPromptChips : NO_NEXT_PROMPT_CHIPS,
+    draftMessage,
+  );
+  // A tap fills the empty composer (or swaps an untouched suggestion) and never sends.
+  const pickNextPrompt = (chip: NextPromptChip) => {
+    const next = nextPromptChipDraft(
+      nextPromptChips,
+      getComposerDraftSnapshot(composerDraftKey).text,
+      chip,
+    );
+    if (next === null) return;
+    onChangeDraftMessage(next);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelection({ start: next.length, end: next.length });
+    });
+  };
+
   // A pending sheet presentation or focus restore has no composer left to act on.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- disposes the pending settings sheet presentation and focus restore on unmount
   useEffect(() => () => disposeSettingsSheetPresentation(), []);
@@ -570,6 +625,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
     if (inFlightThreadIdsRef.current.has(threadKey)) return;
     inFlightThreadIdsRef.current.add(threadKey);
+    setSentAfterRunId(latestRunId);
     await inputRef.current?.flushPendingInput();
     const draftAtSend = getComposerDraftSnapshot(composerDraftKey);
     const stillSendable = () => {
@@ -588,9 +644,14 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     inFlightThreadIdsRef.current.delete(threadKey);
     if (AsyncResult.isFailure(sent)) {
       console.error("[composer] send failed", squashAtomCommandFailure(sent));
+      // Nothing went out, so the run's buttons are still the next step.
+      setSentAfterRunId(null);
       return;
     }
-    if (sent.value === null) return;
+    if (sent.value === null) {
+      setSentAfterRunId(null);
+      return;
+    }
     if (isSkillReloadCommand(draftAtSend.text) && props.projectCwd) {
       void refreshProviders({
         environmentId: props.environmentId,
@@ -813,6 +874,11 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
             onPress={openSettings}
           />
         ) : null}
+        <NextPromptSuggestionChips
+          chips={offeredNextPrompts.chips}
+          activeIndex={offeredNextPrompts.activeIndex}
+          onPick={pickNextPrompt}
+        />
 
         <ComposerSurface
           animateLayout={false}
