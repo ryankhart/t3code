@@ -73,7 +73,12 @@ import { useThreadPr } from "../../state/use-thread-pr";
 import { useSwipeRowDormant } from "../home/swipe-row-activation";
 import { ThreadSwipeable } from "../home/thread-swipe-actions";
 import { buildThreadTitleRegenerationMenuItems } from "./thread-title-regeneration-menu";
-import { canTurnThreadIntoProject, turnThreadIntoProject } from "./turnThreadIntoProject";
+import {
+  moveThreadToProject,
+  turnThreadIntoProject,
+  useThreadProjectActions,
+} from "./turnThreadIntoProject";
+import { moveToProjectMenuEventId, parseMoveToProjectMenuEvent } from "./thread-move-targets";
 import { threadCanArchive } from "../home/threadArchive";
 import { useCanShareWithGuest } from "./useCanShareWithGuest";
 import {
@@ -1059,7 +1064,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         : [],
     [gt, props.autoSettleOptOutSupported, thread.autoSettleDisabledAt],
   );
-  const canTurnIntoProject = canTurnThreadIntoProject(thread);
+  const { canTurnIntoProject, moveTargets } = useThreadProjectActions(thread);
   const titleMenuItems = useMemo<MenuAction[]>(
     () => [
       {
@@ -1085,11 +1090,26 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             } satisfies MenuAction,
           ]
         : []),
+      ...(moveTargets.length > 0
+        ? [
+            {
+              id: "move-to-project",
+              title: gt("Move to project"),
+              image: "folder.fill",
+              attributes: { disabled: !threadCanArchive(thread.runtime) },
+              subactions: moveTargets.map((target) => ({
+                id: moveToProjectMenuEventId(target.id),
+                title: target.title,
+              })),
+            } satisfies MenuAction,
+          ]
+        : []),
     ],
     [
       canTurnIntoProject,
       gt,
       m,
+      moveTargets,
       props.titleRegenerationSupported,
       thread.runtime,
       isRegeneratingTitle,
@@ -1227,6 +1247,11 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           environmentId: thread.environmentId,
           input: { threadId: thread.id },
         });
+      }
+      const moveToProjectId = parseMoveToProjectMenuEvent(nativeEvent.event);
+      if (moveToProjectId !== null) {
+        void moveThreadToProject(thread, moveToProjectId);
+        return;
       }
       if (nativeEvent.event === "copy-thread") {
         const target = threadChipCopyTarget(
