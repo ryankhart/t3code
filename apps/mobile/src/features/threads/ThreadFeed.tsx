@@ -215,6 +215,7 @@ import {
   type MediaVideoPreviewSource,
 } from "../../lib/videoPreviewSource";
 import { CopyTextButton } from "./CopyTextButton";
+import { ReadAloudButton } from "../read-aloud/ReadAloudButton";
 import { Menu } from "../../components/ui/Menu";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { useBarInset, useContentTopInset } from "../../components/ui/useBarInset";
@@ -2758,6 +2759,14 @@ function renderFeedEntry(
             <AssistantShareButton
               text={renderedText}
               iconColor={iconSubtleColor}
+              buttonSize={props.replyActionSize.button}
+              iconSize={props.replyActionSize.icon}
+            />
+            <ReadAloudButton
+              messageId={message.id}
+              markdown={renderedText}
+              environmentId={props.environmentId}
+              tintColor={iconSubtleColor}
               buttonSize={props.replyActionSize.button}
               iconSize={props.replyActionSize.icon}
             />
