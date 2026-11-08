@@ -202,6 +202,7 @@ import {
   ThreadComposer,
 } from "./ThreadComposer";
 import { ComposerPopoverHost } from "./ComposerPopoverHost";
+import { ReadAloudOwner } from "../read-aloud/ReadAloudButton";
 import { ThreadFeed, type ThreadFeedHandle, type ThreadFeedHistoryControls } from "./ThreadFeed";
 import { WorkspaceMutationIdProvider } from "./WorkspaceMutationIdProvider";
 import { useThreadTurnSubagents } from "./ThreadAgentsSheet";
@@ -1508,55 +1509,60 @@ function ThreadDetailBody(
             )}
           >
             <WorkspaceMutationIdProvider threadRef={props.selectedThreadDetailRef}>
-              <ThreadFeed
-                toolCallVisibility={toolCallVisibility}
-                environmentId={props.environmentId}
-                threadId={props.selectedThread.id}
-                detailRef={props.selectedThreadDetailRef}
-                workspaceRoot={props.threadCwd}
-                feed={props.selectedThreadFeed}
-                pendingHandoff={props.pendingHandoff}
-                worktreeSetup={props.worktreeSetup}
-                setupWorkingStartedAt={props.setupWorkingStartedAt}
-                queuedMessages={props.queuedMessages}
-                dispatchingMessageId={props.dispatchingMessageId}
-                // A native subagent has no composer to edit a pending message in;
-                // Cancel on the edit banner would discard it.
-                onEditPendingMessage={
-                  isProviderSubagent || pendingMessageEditBlocked ? null : handleEditPendingMessage
-                }
-                contentPresentation={props.contentPresentation}
-                threadTitle={props.selectedThread.title}
-                latestRun={props.activityRun}
-                activeWorkStartedAt={props.activeWorkStartedAt}
-                runlessWorkActive={props.runlessWorkActive ?? false}
-                listRef={listRef}
-                freeze={freeze}
-                anchorMessageId={anchorMessageId}
-                jumpToMessageId={jumpMessageLoaded ? jumpMessageId : null}
-                onJumpedToMessage={() => finishThreadMessageJump(selectedThreadKey)}
-                ref={feedRef}
-                contentInsetEndAdjustment={combinedContentInsetEndAdjustment}
-                keyboardOffset={composerKeyboardOffset}
-                sendingWithKeyboard={sendingWithKeyboard}
-                fitShortFeedToViewport={questionInFlow && !isKeyboardVisible}
-                contentTopInset={0}
-                contentBottomInset={
-                  questionInFlow
-                    ? 0
-                    : estimatedOverlayHeight +
-                      (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0)
-                }
-                contentMaxWidth={contentMaxWidth}
-                historyControls={props.historyControls}
-                contentSideInsets={nativeMetrics?.safeArea}
-                layoutVariant={layoutVariant}
-                usesAutomaticContentInsets={props.usesAutomaticContentInsets}
-                onHeaderMaterialVisibilityChange={props.onHeaderMaterialVisibilityChange}
-                onEndFollowEnabledChange={handleEndFollowEnabledChange}
-                skills={selectedProviderSkills}
-                onUseArtifactTemplate={handleUseArtifactTemplate}
-              />
+              {/* Custom build: leaving the thread stops a reply from it being read aloud. */}
+              <ReadAloudOwner ownerKey={selectedThreadKey}>
+                <ThreadFeed
+                  toolCallVisibility={toolCallVisibility}
+                  environmentId={props.environmentId}
+                  threadId={props.selectedThread.id}
+                  detailRef={props.selectedThreadDetailRef}
+                  workspaceRoot={props.threadCwd}
+                  feed={props.selectedThreadFeed}
+                  pendingHandoff={props.pendingHandoff}
+                  worktreeSetup={props.worktreeSetup}
+                  setupWorkingStartedAt={props.setupWorkingStartedAt}
+                  queuedMessages={props.queuedMessages}
+                  dispatchingMessageId={props.dispatchingMessageId}
+                  // A native subagent has no composer to edit a pending message in;
+                  // Cancel on the edit banner would discard it.
+                  onEditPendingMessage={
+                    isProviderSubagent || pendingMessageEditBlocked
+                      ? null
+                      : handleEditPendingMessage
+                  }
+                  contentPresentation={props.contentPresentation}
+                  threadTitle={props.selectedThread.title}
+                  latestRun={props.activityRun}
+                  activeWorkStartedAt={props.activeWorkStartedAt}
+                  runlessWorkActive={props.runlessWorkActive ?? false}
+                  listRef={listRef}
+                  freeze={freeze}
+                  anchorMessageId={anchorMessageId}
+                  jumpToMessageId={jumpMessageLoaded ? jumpMessageId : null}
+                  onJumpedToMessage={() => finishThreadMessageJump(selectedThreadKey)}
+                  ref={feedRef}
+                  contentInsetEndAdjustment={combinedContentInsetEndAdjustment}
+                  keyboardOffset={composerKeyboardOffset}
+                  sendingWithKeyboard={sendingWithKeyboard}
+                  fitShortFeedToViewport={questionInFlow && !isKeyboardVisible}
+                  contentTopInset={0}
+                  contentBottomInset={
+                    questionInFlow
+                      ? 0
+                      : estimatedOverlayHeight +
+                        (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0)
+                  }
+                  contentMaxWidth={contentMaxWidth}
+                  historyControls={props.historyControls}
+                  contentSideInsets={nativeMetrics?.safeArea}
+                  layoutVariant={layoutVariant}
+                  usesAutomaticContentInsets={props.usesAutomaticContentInsets}
+                  onHeaderMaterialVisibilityChange={props.onHeaderMaterialVisibilityChange}
+                  onEndFollowEnabledChange={handleEndFollowEnabledChange}
+                  skills={selectedProviderSkills}
+                  onUseArtifactTemplate={handleUseArtifactTemplate}
+                />
+              </ReadAloudOwner>
             </WorkspaceMutationIdProvider>
           </RenderErrorBoundary>
         </View>
