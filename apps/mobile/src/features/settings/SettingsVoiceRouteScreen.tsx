@@ -34,6 +34,7 @@ import {
 } from "../voice-input/voiceDestination";
 import { LocalModelChoice } from "./VoiceModelSection";
 import { CloudVoiceChoice } from "./CloudVoiceSection";
+import { ReadAloudVoiceSection } from "../read-aloud/ReadAloudVoiceSection";
 import type { VoiceGrant } from "../voice-input/voiceGrantStorage";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ThreadSwipeable } from "../home/thread-swipe-actions";
@@ -406,6 +407,14 @@ export function SettingsVoiceRouteScreen() {
                 "Voice input uses the first connected microphone in this list. A wired or Bluetooth microphone is added by name the first time you dictate with it connected; until then it falls under Other. Swipe left on a named microphone to forget it.",
               )}
         </Text>
+        <ReadAloudVoiceSection
+          environmentId={
+            (
+              environments.find((environment) => environment.connection.phase === "connected") ??
+              environments[0]
+            )?.environmentId ?? null
+          }
+        />
       </ScrollView>
     </SettingsScreen>
   );
