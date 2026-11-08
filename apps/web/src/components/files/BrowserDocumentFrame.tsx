@@ -17,6 +17,7 @@ import {
   htmlRenderThemeFragment,
   htmlRenderThemeMessage,
   htmlRenderResult,
+  readHtmlRenderComposeRequest,
   readHtmlRenderContentHeight,
   readHtmlRenderImageRequest,
   readHtmlRenderKeyDown,
@@ -45,6 +46,7 @@ import { useOpenLink } from "~/browser/useOpenLink";
 import { ExpandedImageDialog } from "~/components/chat/ExpandedImageDialog";
 import type { ExpandedImagePreview } from "~/components/chat/ExpandedImagePreview";
 import { useHtmlRenderTheme } from "~/hooks/useHtmlRenderTheme";
+import { requestHtmlRenderCompose } from "~/htmlRenderCompose";
 import { shortcutConflictKey } from "~/keybindings";
 import { useOpenIssueLink } from "~/lib/openIssueLink";
 import { useOpenChangeRequestLink } from "~/lib/openPullRequestLink";
@@ -434,6 +436,12 @@ export function HtmlRenderDocument(props: {
     const imageRequest = readHtmlRenderImageRequest(event.data);
     if (imageRequest !== undefined) {
       setExpandedImage({ images: [...imageRequest.images], index: imageRequest.index });
+      return;
+    }
+    // Same focus and activation gate as links, so only the reader's click can fill the box.
+    const composeRequest = readHtmlRenderComposeRequest(event.data);
+    if (composeRequest !== undefined) {
+      requestHtmlRenderCompose({ threadRef: props.threadRef, text: composeRequest.text });
     }
   });
   // Attach at commit because a fast page may post its initial height before passive effects run.

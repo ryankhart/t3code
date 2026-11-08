@@ -244,6 +244,7 @@ import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { toastManager } from "./ui/toast";
+import { onHtmlRenderCompose } from "../htmlRenderCompose";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId, randomUUID } from "~/lib/utils";
 import {
@@ -2141,6 +2142,32 @@ export default function ChatView(props: ChatViewProps) {
     scheduleComposerFocusStable();
   };
   const insertArtifactTemplateStable = useStableCallback(insertArtifactTemplate);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to inline pages in this thread handing text to the message box
+  useEffect(
+    () =>
+      onHtmlRenderCompose((request) => {
+        if (
+          request.threadRef === undefined ||
+          activeThreadKey === null ||
+          scopedThreadKey(request.threadRef) !== activeThreadKey
+        ) {
+          return false;
+        }
+        const composer = composerRef.current;
+        if (!composer) return false;
+        if (!composer.insertTextAtEnd(request.text, { ensureLeadingBoundary: true })) {
+          toastManager.add({
+            type: "error",
+            title: "Unable to add to chat",
+            description: "The composer is busy; try again once it is ready.",
+          });
+          return true;
+        }
+        scheduleComposerFocusStable();
+        return true;
+      }),
+    [activeThreadKey, composerRef, scheduleComposerFocusStable],
+  );
   const sendAppMessage = async (text: string) => {
     if (!isServerThread || activeThreadId === null) {
       throw new Error(gt("Messages from apps need a started thread."));
