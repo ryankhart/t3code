@@ -42,6 +42,7 @@ import {
   type NativeMarkdownTextStyle,
 } from "../../native/SelectableMarkdownText";
 import { fileRoutePathSegments, resolveWorkspaceFilePath } from "./filePath";
+import { MarkdownFrontmatterTable } from "./MarkdownFrontmatterTable";
 import { SourceFileSurface } from "./SourceFileSurface";
 
 interface MarkdownPreviewStyles {
@@ -291,6 +292,11 @@ export function FileMarkdownPreview(props: {
         recycleItems={false}
         contentContainerStyle={{ paddingHorizontal: 18, paddingVertical: 18 }}
         ItemSeparatorComponent={ChunkSeparator}
+        ListHeaderComponent={
+          <View className="mx-auto w-full max-w-[760px]">
+            <MarkdownFrontmatterTable markdown={props.markdown} textStyle={styles.nativeTextStyle} />
+          </View>
+        }
         renderItem={({ item }) => (
           <View className="mx-auto w-full max-w-[760px]">
             {renderMarkdown(withMarkdownDefinitions(item.text, definitions))}
