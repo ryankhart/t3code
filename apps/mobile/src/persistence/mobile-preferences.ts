@@ -18,7 +18,7 @@ import {
   PullRequestMergeMethod,
   type SidebarProjectGroupingMode,
 } from "@t3tools/contracts";
-import { ToolCallVisibility } from "@t3tools/contracts/settings";
+import { NewThreadButtonTarget, ToolCallVisibility } from "@t3tools/contracts/settings";
 import type { AndroidNavigationStyle } from "../lib/androidNavigationStyle";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
@@ -183,6 +183,8 @@ export interface Preferences {
   readonly workspaceSelections?: WorkspaceSelections;
   readonly pullRequestSavedViews?: ReadonlyArray<PullRequestSavedView>;
   readonly issueSavedViews?: ReadonlyArray<IssueSavedView>;
+  // New thread button: "No project" starts a No project thread without the picker.
+  readonly newThreadButtonTarget?: NewThreadButtonTarget;
 }
 
 export class MobilePreferencesLoadError extends Schema.TaggedError<MobilePreferencesLoadError>()(
@@ -226,6 +228,7 @@ export class MobilePreferencesStore extends Context.Service<
 
 const isToolCallVisibility = Schema.is(ToolCallVisibility);
 const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
+const isNewThreadButtonTarget = Schema.is(NewThreadButtonTarget);
 
 function sanitizePreferences(parsed: Preferences): Preferences {
   const preferences: {
@@ -270,6 +273,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     workspaceSelections?: WorkspaceSelections;
     pullRequestSavedViews?: ReadonlyArray<PullRequestSavedView>;
     issueSavedViews?: ReadonlyArray<IssueSavedView>;
+    newThreadButtonTarget?: NewThreadButtonTarget;
   } = {};
 
   if (Array.isArray(parsed.hiddenNavigationTabs)) {
@@ -434,6 +438,10 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (Array.isArray(parsed.issueSavedViews)) {
     preferences.issueSavedViews = parsed.issueSavedViews.filter(isIssueSavedView);
+  }
+  // New thread button.
+  if (isNewThreadButtonTarget(parsed.newThreadButtonTarget)) {
+    preferences.newThreadButtonTarget = parsed.newThreadButtonTarget;
   }
   return preferences;
 }
