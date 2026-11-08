@@ -68,6 +68,9 @@ import {
 import { useThreadPr } from "../../state/use-thread-pr";
 import { useSwipeRowDormant } from "../home/swipe-row-activation";
 import { ThreadSwipeable } from "../home/thread-swipe-actions";
+import { SETTLED_SHELF_PULSE_KEY, useReturnPulseToken } from "../home/return-pulse";
+import { ReturnPulseOverlay } from "./ReturnPulseOverlay";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 import { buildThreadTitleRegenerationMenuItems } from "./thread-title-regeneration-menu";
 import {
   moveThreadToProject,
@@ -386,7 +389,20 @@ export const ThreadListV2SnoozedShelfHeader = memo(function ThreadListV2SnoozedS
 export const ThreadListV2SettledShelfHeader = memo(function ThreadListV2SettledShelfHeader(
   props: ThreadListV2ShelfHeaderProps,
 ) {
-  return <ThreadListV2ShelfHeader {...props} kind="settled" />;
+  const theme = useUniwindTheme();
+  const returnPulseToken = useReturnPulseToken(SETTLED_SHELF_PULSE_KEY);
+  return (
+    <View>
+      {returnPulseToken === null ? null : (
+        <ReturnPulseOverlay
+          key={returnPulseToken}
+          color={theme["--color-thread-selected"]}
+          borderRadius={8}
+        />
+      )}
+      <ThreadListV2ShelfHeader {...props} kind="settled" />
+    </View>
+  );
 });
 
 export const ThreadListV2ShowMoreRow = memo(function ThreadListV2ShowMoreRow(props: {
@@ -941,6 +957,19 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const [customSnoozeOpen, setCustomSnoozeOpen] = useState(false);
   // Recycling changes identity without remounting; clear local UI directly because equality may skip the render closure.
   const rowIdentity = `${thread.environmentId}:${thread.id}`;
+  const returnPulseToken = useReturnPulseToken(scopedThreadKey(thread.environmentId, thread.id));
+  const returnPulse =
+    returnPulseToken === null ? null : (
+      <ReturnPulseOverlay
+        key={returnPulseToken}
+        color={theme["--color-thread-selected"]}
+        borderRadius={
+          typeof rowAppearance.style?.borderRadius === "number"
+            ? rowAppearance.style.borderRadius
+            : 0
+        }
+      />
+    );
   const [boundIdentity, setBoundIdentity] = useState(rowIdentity);
   if (boundIdentity !== rowIdentity) {
     setBoundIdentity(rowIdentity);
@@ -1671,6 +1700,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         }}
         style={rowAppearance.cardStyle}
       >
+        {returnPulse}
         {sidebarPane ? (
           fadedCardContent
         ) : (
@@ -1698,6 +1728,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         }}
         style={rowAppearance.style}
       >
+        {returnPulse}
         <View
           className={cn(
             THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME,
