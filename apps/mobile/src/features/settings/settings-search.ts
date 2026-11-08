@@ -54,6 +54,10 @@ const SETTINGS_SEARCH_TERMS = {
     "working section",
     "new threads",
     "last project",
+    "new thread button",
+    "no project",
+    "choose a project",
+    "scratch",
   ],
   SettingsThreads: [
     "new threads",
