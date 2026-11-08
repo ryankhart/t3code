@@ -206,6 +206,7 @@ import {
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
   messageFoldRunId,
+  runFoldStepSuffix,
 } from "../../lib/threadActivity";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
 import { type ThreadWorkGroupScrollPosition } from "./thread-feed-scroll-position";
@@ -1601,6 +1602,7 @@ function RunFoldButton({
           className="shrink font-t3-medium text-sm tabular-nums text-foreground-muted"
         >
           {entry.label}
+          {runFoldStepSuffix(entry.stepCount)}
           {error ? ` · ${error}` : ""}
         </Text>
         <ThreadDisclosureChevron
