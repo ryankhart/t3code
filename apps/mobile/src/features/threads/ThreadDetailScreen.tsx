@@ -208,6 +208,7 @@ import {
   type ThreadComposerProps,
 } from "./ThreadComposer";
 import { ComposerPopoverHost } from "./ComposerPopoverHost";
+import { ReadAloudOwner } from "../read-aloud/ReadAloudButton";
 import { ThreadFeed, type ThreadFeedHistoryControls } from "./ThreadFeed";
 import { WorkspaceMutationIdProvider } from "./WorkspaceMutationIdProvider";
 import { useThreadTurnSubagents } from "./ThreadAgentsSheet";
@@ -1500,6 +1501,8 @@ function ThreadDetailBody(
             )}
           >
             <WorkspaceMutationIdProvider threadRef={props.selectedThreadDetailRef}>
+              {/* Custom build: leaving the thread stops a reply from it being read aloud. */}
+              <ReadAloudOwner ownerKey={selectedThreadKey}>
               <ColumnWidth width={columnWidth}>
                 <ThreadFeed
                   toolCallVisibility={toolCallVisibility}
@@ -1551,6 +1554,7 @@ function ThreadDetailBody(
                   onUseArtifactTemplate={handleUseArtifactTemplate}
                 />
               </ColumnWidth>
+              </ReadAloudOwner>
             </WorkspaceMutationIdProvider>
           </RenderErrorBoundary>
         </View>
