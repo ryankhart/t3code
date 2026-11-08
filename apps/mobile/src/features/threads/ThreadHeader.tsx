@@ -23,6 +23,12 @@ export function ThreadHeader(props: {
   readonly hasThreadCwd: boolean;
   readonly inspectorMode: ThreadInspectorMode | null;
   readonly onOpenFilesInspector: () => void;
+  /** One-tap settle for the open thread (phone). */
+  readonly settle?: {
+    readonly settled: boolean;
+    readonly busy: boolean;
+    readonly onPress: () => void;
+  };
 }) {
   const gt = useGT();
   const m = useMessages();
@@ -32,7 +38,22 @@ export function ThreadHeader(props: {
   const gitMenu = useThreadGitMenuDefinition(props.gitControls);
   const terminalMenu = threadTerminalMenu(props.gitControls, m);
   const filesVisible = props.inspectorMode === "files" && panes.auxiliaryPaneVisible;
-  const actions: AppBarAction[] = props.hasThreadCwd
+  const settleAction: AppBarAction[] = props.settle
+    ? [
+        {
+          accessibilityLabel: props.settle.settled ? "Un-settle thread" : "Settle thread",
+          // Filled once settled; Android's plain "checkmark.circle.fill" maps to the outline.
+          icon: props.settle.settled
+            ? { ios: "checkmark.circle.fill", android: "check_circle" }
+            : "checkmark.circle",
+          selected: props.settle.settled,
+          disabled: props.settle.busy,
+          separateBackground: false,
+          onPress: props.settle.onPress,
+        },
+      ]
+    : [];
+  const fileActions: AppBarAction[] = props.hasThreadCwd
     ? [
         {
           accessibilityLabel: filesVisible ? gt("Close files") : gt("Open files"),
@@ -44,6 +65,7 @@ export function ThreadHeader(props: {
         },
       ]
     : [];
+  const actions = [...settleAction, ...fileActions];
   const menus = [gitMenu, terminalMenu].filter((menu): menu is AppBarMenu => menu !== null);
 
   return (
