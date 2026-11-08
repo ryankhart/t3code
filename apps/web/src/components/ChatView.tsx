@@ -2539,6 +2539,7 @@ export default function ChatView(props: ChatViewProps) {
         currentGitBranch: gitStatusQuery.data?.refName ?? null,
       })
     : null;
+  const [nextPromptChipsSlot, setNextPromptChipsSlot] = useState<HTMLDivElement | null>(null);
   const publishComposerOverlayHeight = (height: number) => {
     const nextHeight = Math.ceil(height);
     if (nextHeight <= 0) return;
@@ -4174,6 +4175,8 @@ export default function ChatView(props: ChatViewProps) {
                     }
                   >
                     <ChildThreadApprovals threadRef={activeThreadRef} />
+                    {/* Custom build: next-prompt buttons, drawn by ChatComposer above its card. */}
+                    <div ref={setNextPromptChipsSlot} />
                     <div className="relative">
                       <ComposerSurface.Shell contextRow={showComposerContextStrip}>
                         <ComposerSurface.Host
@@ -4207,6 +4210,7 @@ export default function ChatView(props: ChatViewProps) {
                             ) : null}
                             {!composerMounted ? null : (
                               <ChatComposer
+                                nextPromptChipsSlot={nextPromptChipsSlot}
                                 canOperateThread={canOperateThread}
                                 reportedModelSelection={reportedModelSelection}
                                 multipleModelSelections={multipleModelSelections}
