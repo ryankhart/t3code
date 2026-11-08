@@ -152,6 +152,7 @@ import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import { downloadAndShareAttachment } from "../../lib/attachmentDownload";
 import { splitMarkdownDetails } from "../../lib/markdownDetails";
 import { markdownReferenceDefinitions, withReferenceDefinitions } from "../../lib/markdownDocument";
+import { stripOptionsCodeFences } from "../../lib/markdownOptionsFence";
 import { hasWideMarkdownBlock } from "../../lib/wideMarkdownBlocks";
 import {
   SelectableMarkdownText,
@@ -1170,7 +1171,11 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
   const models = useModelMentions(props.environmentId, props.markdown);
-  const liveMarkdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
+  // Custom build: a reply's `options` block shows as buttons above the composer instead.
+  const liveMarkdown = useLiveThreadLinkLabels(
+    stripOptionsCodeFences(props.markdown),
+    props.environmentId,
+  );
   const threadIcons = useThreadChipIcons(props.environmentId, liveMarkdown);
   const linkHandlers: MarkdownLinkHandlers = {
     ...props.linkHandlers,
