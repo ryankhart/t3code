@@ -515,7 +515,7 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const random = yield* SecureRandom.SecureRandom;
   const settingsRef = yield* SynchronizedRef.make(environment.defaultDesktopSettings);
-  const singleReleaseChannel = environment.branding.baseName === "MT Code";
+  const singleReleaseChannel = environment.branding.singleReleaseChannel === true;
   // Writing over a settings file we could not read would erase the preferences it holds.
   const persistenceEnabled = yield* Ref.make(true);
 
