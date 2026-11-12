@@ -178,8 +178,9 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.FORK_PUSH_TOKEN || github.token }}
 
-      - name: Fetch base tag
-        run: git fetch --no-tags "$MTCODE_REMOTE" "+refs/tags/$BASE_TAG:refs/tags/$BASE_TAG"
+      - name: Fetch MT Code tags
+        # All of them: release notes compare against the previous release's base.
+        run: git fetch --no-tags "$MTCODE_REMOTE" '+refs/tags/munim-v*:refs/tags/munim-v*'
 
       - uses: actions/setup-node@v4
         with:
@@ -225,7 +226,9 @@ jobs:
           shopt -s nullglob
           files=(release/*.exe release/*.exe.blockmap release/latest*.yml)
           [ ${#files[@]} -ge 3 ] || { echo "missing release files: ${files[*]}"; exit 1; }
-          notes="Built from MT Code ${BASE_TAG#munim-v} plus this fork's commits ($(git rev-list --count "$BASE_TAG..HEAD") commits). See FORK.md."
+          # A notes failure mustn't block a finished build.
+          notes=$(node fork/release-notes.mjs "$BASE_TAG" "$VERSION") ||
+            notes="Built from MT Code ${BASE_TAG#munim-v} plus this fork's commits. See FORK.md."
           gh release create "v$VERSION" "${files[@]}" --target "${{ needs.sync.outputs.sha }}" \
             --title "T3 Code Fork $VERSION" --notes "$notes" --latest
           echo "published=true" >> "$GITHUB_OUTPUT"
