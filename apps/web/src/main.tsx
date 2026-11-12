@@ -81,6 +81,6 @@ export const startup = Promise.all([
   })
   .catch((error: unknown) => {
     if (chunkLoadState.reloadScheduled) return;
-    // bootstrap.ts renders the (MT Code branded) boot error page from this rejection.
+    // bootstrap.ts renders the (T3 Code branded in this fork) boot error page from this rejection.
     throw error;
   });
