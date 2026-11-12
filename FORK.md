@@ -14,7 +14,7 @@ The [Fork sync and build](.github/workflows/fork-build.yml) workflow runs every 
 
 1. If MT Code published a new `munim-v*` release, it re-applies this fork's commits on top of it. Commits listed in [`fork/now-in-mtcode.txt`](fork/now-in-mtcode.txt) are left out once the release contains the upstream commit that replaces them. A conflict in `README.md` always keeps this fork's version. Any other conflict is resolved by Claude Code (see [`fork/resolve-conflicts-prompt.md`](fork/resolve-conflicts-prompt.md)); if it can't, the run stops.
 2. On a Windows runner it installs dependencies, runs the tests and typechecks for every file the fork's commits touch, and builds the installer.
-3. It checks that each fork feature is inside the installer ([`fork/installer-markers.txt`](fork/installer-markers.txt)), then publishes a GitHub release with the installer and `latest.yml`.
+3. It checks that each fork feature is inside the installer ([`fork/installer-markers.txt`](fork/installer-markers.txt)), then publishes a GitHub release with the installer and `latest.yml`. Its notes ([`fork/release-notes.mjs`](fork/release-notes.mjs)) list one line per `feat`, `fix` or `perf` commit that is new since the previous release, taken from the commit subject, so write subjects a user would understand. When the MT Code base moved, they also list MT Code's own changes from its release notes.
 4. Only then does the rebased branch replace `main`.
 5. On a Linux runner it builds the phone app from the same commit and attaches `T3-Code-Fork-<version>.apk` to that release. If this step fails, the desktop release stays and the failure issue says the APK is missing.
 
