@@ -1,5 +1,6 @@
 import { T, useGT, msg, useMessages } from "gt-react-native";
 import { Button } from "../../components/ui/Button";
+import { ListChoiceRow } from "../../components/ui/ListChoiceRow";
 import {
   type AgentFeedbackMode,
   AuthSettingsWriteScope,
