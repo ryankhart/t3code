@@ -155,6 +155,12 @@ export const PORT_FORWARD_STOP_CHANNEL = "desktop:port-forward-stop";
 export const PORT_FORWARD_LIST_CHANNEL = "desktop:port-forward-list";
 export const PORT_FORWARD_CHANGE_CHANNEL = "desktop:port-forward-change";
 export const PORT_FORWARD_SHARES_LOOPBACK_CHANNEL = "desktop:port-forward-shares-loopback";
+export const PREVIEW_EXTENSIONS_STATE_CHANNEL = "desktop:preview-extensions-state";
+export const PREVIEW_EXTENSIONS_ACTIVATE_CHANNEL = "desktop:preview-extensions-activate";
+export const PREVIEW_EXTENSIONS_INSTALL_CHANNEL = "desktop:preview-extensions-install";
+export const PREVIEW_EXTENSIONS_REMOVE_CHANNEL = "desktop:preview-extensions-remove";
+export const PREVIEW_EXTENSIONS_OPTIONS_CHANNEL = "desktop:preview-extensions-options";
+export const PREVIEW_EXTENSIONS_CHANGED_CHANNEL = "desktop:preview-extensions-changed";
 
 export const MAC_PERMISSION_HELPER_CHANNEL = "desktop:mac-permission-helper";
 
