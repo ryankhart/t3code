@@ -3736,6 +3736,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     pickElement,
     updateAnnotationVoice,
     prepareWebview,
+    getTabWebContents: requireWebContents,
     reapplyZoom,
     refresh,
     stopLoading,
@@ -3938,6 +3939,9 @@ export class PreviewManager extends Context.Service<
       webContentsId: number,
     ) => Effect.Effect<void, PreviewManagerError>;
     readonly prepareWebview: (webContents: Electron.WebContents) => Effect.Effect<void>;
+    readonly getTabWebContents: (
+      tabId: string,
+    ) => Effect.Effect<Electron.WebContents, PreviewManagerError>;
     readonly navigate: (tabId: string, url: string) => Effect.Effect<void, PreviewManagerError>;
     readonly goBack: (tabId: string) => Effect.Effect<void, PreviewManagerError>;
     readonly goForward: (tabId: string) => Effect.Effect<void, PreviewManagerError>;
@@ -4118,6 +4122,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
     closeTab: operations.closeTab,
     registerWebview: operations.registerWebview,
     prepareWebview: operations.prepareWebview,
+    getTabWebContents: operations.getTabWebContents,
     navigate: operations.navigate,
     goBack: operations.goBack,
     goForward: operations.goForward,
