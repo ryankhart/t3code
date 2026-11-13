@@ -15,11 +15,10 @@ on:
     - cron: "23 */4 * * *"
   push:
     branches: [main]
-    paths-ignore: ["FORK.md"]
   workflow_dispatch:
     inputs:
       force_build:
-        description: Build and publish even if the current commit was already released
+        description: Build and publish even if the current commit was already released or only docs changed
         type: boolean
         default: false
 
@@ -134,7 +133,18 @@ jobs:
           sha=$(git rev-parse HEAD)
           released=$(git tag --points-at HEAD -l 'v*' | head -1)
           build=true
-          if [ -n "$released" ] && [ "${{ inputs.force_build }}" != "true" ]; then build=false; fi
+          if [ "${{ inputs.force_build }}" != "true" ]; then
+            if [ -n "$released" ]; then
+              build=false
+            elif [ "${{ steps.rebase.outputs.rebased }}" != "true" ]; then
+              # Docs-only commits since the last release wait for the next code change or MT Code release.
+              last=$(git describe --tags --match 'v*' --abbrev=0 HEAD 2>/dev/null || true)
+              if [ -n "$last" ] && ! git diff --name-only "$last" HEAD | grep -qvE '^(docs/|\.github/readme/|[^/]+\.md$)'; then
+                build=false
+                echo "Only docs changed since $last"
+              fi
+            fi
+          fi
           # Fork version: MT Code's x.y.z becomes x.y.(z*100+n), n = rebuild count on that base,
           # so each rebuild sorts above the last and below the next MT Code release.
           v=${base#munim-v}; maj=${v%%.*}; rest=${v#*.}; min=${rest%%.*}; pat=${rest#*.}
