@@ -283,6 +283,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --color-sidebar-muted-foreground: var(--contrast-sidebar-muted-foreground);
   --color-sidebar-control-surface: var(--sidebar-control-surface);
   --color-sidebar-row-hover: var(--sidebar-row-hover);
+  --color-sidebar-tray: color-mix(in srgb, var(--contrast-sidebar-foreground) 5%, var(--sidebar));
   --color-sidebar-row-active: var(--sidebar-row-active);
   --color-sidebar-row-selected: var(--sidebar-row-selected);
   --color-sidebar-border: var(--contrast-sidebar-border);
@@ -2656,4 +2657,27 @@ code {
 [data-workspace-keyboard-focus]:focus {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
+}
+
+@layer components {
+  /* The Working, Snoozed and Settled shelves sit in one raised tray docked under the thread
+     list. Rows stay direct children of the list for its motion code, so each one paints a
+     slice of the tray, and the negative margin closes the list's 1px gap between slices. */
+  [data-sidebar-tray-start],
+  [data-sidebar-tray-start] ~ * {
+    background-color: var(--color-sidebar-tray);
+  }
+  [data-sidebar-tray-start] ~ * {
+    margin-top: -1px;
+  }
+  [data-sidebar-tray-start] {
+    border-top: 1px solid color-mix(in srgb, var(--contrast-sidebar-foreground) 12%, transparent);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    box-shadow: 0 -4px 10px -2px rgb(0 0 0 / 0.22);
+  }
+  [data-sidebar-tray-start]:last-child,
+  [data-sidebar-tray-start] ~ :last-child {
+    border-bottom-left-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+  }
 }

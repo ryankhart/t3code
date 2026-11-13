@@ -1450,6 +1450,16 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           }
         >
           {accessibleTitle}
+          {props.navigationParent === "shelf:working" && topStatus ? (
+            <span
+              aria-hidden
+              data-testid="sidebar-row-status-rail"
+              className={cn(
+                "pointer-events-none absolute inset-y-2.5 left-0.5 z-10 w-0.5 rounded-full bg-current",
+                topStatus.className,
+              )}
+            />
+          ) : null}
           <div
             className={cn(
               "relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
