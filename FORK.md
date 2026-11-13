@@ -20,7 +20,7 @@ The [Fork sync and build](.github/workflows/fork-build.yml) workflow runs every 
 
 The desktop app's update button reads this repository's releases, so one click installs a build that has already passed. If a step before publishing fails, nothing is published, installed copies stay where they are, and the workflow opens an issue labelled `fork-pipeline`.
 
-Pushing a new commit to `main` also builds and publishes a release.
+Pushing a new commit to `main` also builds and publishes a release, unless nothing but docs changed since the last release (Markdown files at the top level, `docs/` and `.github/readme/`). Docs-only changes go out with the next build; run the workflow with **force_build** to release them sooner.
 
 ## Branches and versions
 
