@@ -244,7 +244,7 @@ import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { toastManager } from "./ui/toast";
-import { onHtmlRenderCompose } from "../htmlRenderCompose";
+import { onBallotPicks } from "../ballot";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId, randomUUID } from "~/lib/utils";
 import {
@@ -2142,10 +2142,10 @@ export default function ChatView(props: ChatViewProps) {
     scheduleComposerFocusStable();
   };
   const insertArtifactTemplateStable = useStableCallback(insertArtifactTemplate);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to inline pages in this thread handing text to the message box
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to ballots in this thread handing picks to the message box
   useEffect(
     () =>
-      onHtmlRenderCompose((request) => {
+      onBallotPicks((request) => {
         if (
           request.threadRef === undefined ||
           activeThreadKey === null ||
