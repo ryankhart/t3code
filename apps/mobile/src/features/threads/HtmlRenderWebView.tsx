@@ -38,6 +38,12 @@ import {
 import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { webViewDecelerationRate } from "../../lib/webViewDecelerationRate";
+import { tryCopyTextWithHaptic } from "../../lib/copyTextWithHaptic";
+import {
+  HTML_RENDER_CLIPBOARD_SCRIPT,
+  htmlRenderClipboardReply,
+  readHtmlRenderClipboardMessage,
+} from "./htmlRenderClipboard";
 
 const ROW_BOTTOM_MARGIN = 8;
 const ACTION_ROW_HEIGHT = 32;
@@ -218,10 +224,20 @@ export function HtmlRenderWebView(props: {
             ? OVERFLOW_SCRIPT + HTML_RENDER_NATIVE_OPEN_IMAGE_SCRIPT
             : HTML_RENDER_NATIVE_OPEN_IMAGE_SCRIPT
         }
-        {...(isBallot
-          ? { injectedJavaScriptBeforeContentLoaded: ballotScript(ballotToken) }
-          : {})}
+        injectedJavaScriptBeforeContentLoaded={
+          isBallot
+            ? ballotScript(ballotToken) + HTML_RENDER_CLIPBOARD_SCRIPT
+            : HTML_RENDER_CLIPBOARD_SCRIPT
+        }
         onMessage={(event: WebViewMessageEvent) => {
+          const copy = readHtmlRenderClipboardMessage(event.nativeEvent.data);
+          if (copy !== null) {
+            const view = webView.current;
+            void tryCopyTextWithHaptic(copy.text, { target: "page text" }).then((ok) =>
+              view?.injectJavaScript(htmlRenderClipboardReply(copy.id, ok)),
+            );
+            return;
+          }
           const message = parseMessage(event.nativeEvent.data);
           const image = imagePreviewSource(message);
           if (image !== null) {
