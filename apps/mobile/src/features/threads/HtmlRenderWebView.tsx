@@ -34,6 +34,12 @@ import {
 import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { webViewDecelerationRate } from "../../lib/webViewDecelerationRate";
+import { tryCopyTextWithHaptic } from "../../lib/copyTextWithHaptic";
+import {
+  HTML_RENDER_CLIPBOARD_SCRIPT,
+  htmlRenderClipboardReply,
+  readHtmlRenderClipboardMessage,
+} from "./htmlRenderClipboard";
 
 const ROW_BOTTOM_MARGIN = 8;
 const FULL_SCREEN_GUTTER = 16;
@@ -192,22 +198,30 @@ export function HtmlRenderWebView(props: {
         onContentProcessDidTerminate={restart}
         onRenderProcessGone={restart}
         {...(props.nested ? { injectedJavaScript: OVERFLOW_SCRIPT } : {})}
-        {...(isBallot ? { injectedJavaScriptBeforeContentLoaded: ballotScript(ballotToken) } : {})}
-        {...(props.nested || isBallot
-          ? {
-              onMessage: (event: WebViewMessageEvent) => {
-                const next = props.nested ? readOverflowMessage(event.nativeEvent.data) : null;
-                if (next !== null) {
-                  setOverflow(next);
-                  return;
-                }
-                const request = isBallot
-                  ? readBallotMessage(event.nativeEvent.data, ballotToken)
-                  : undefined;
-                if (request !== undefined) handOverPicks(tapGate.request(request.text, Date.now()));
-              },
-            }
-          : {})}
+        injectedJavaScriptBeforeContentLoaded={
+          isBallot
+            ? ballotScript(ballotToken) + HTML_RENDER_CLIPBOARD_SCRIPT
+            : HTML_RENDER_CLIPBOARD_SCRIPT
+        }
+        onMessage={(event: WebViewMessageEvent) => {
+          const copy = readHtmlRenderClipboardMessage(event.nativeEvent.data);
+          if (copy !== null) {
+            const view = webView.current;
+            void tryCopyTextWithHaptic(copy.text, { target: "page text" }).then((ok) =>
+              view?.injectJavaScript(htmlRenderClipboardReply(copy.id, ok)),
+            );
+            return;
+          }
+          const next = props.nested ? readOverflowMessage(event.nativeEvent.data) : null;
+          if (next !== null) {
+            setOverflow(next);
+            return;
+          }
+          const request = isBallot
+            ? readBallotMessage(event.nativeEvent.data, ballotToken)
+            : undefined;
+          if (request !== undefined) handOverPicks(tapGate.request(request.text, Date.now()));
+        }}
       />
       {loaded ? null : (
         <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
