@@ -3739,6 +3739,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               key="working-shelf-header"
                               marker="working-header"
                               className="mt-auto"
+                              trayStart
                               label={gt("Working", { $context: "sidebar section" })}
                               count={workingThreads.length}
                               toggle={{
@@ -3754,6 +3755,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               key="snoozed-shelf-header"
                               marker="snoozed-header"
                               className={cn(workingThreads.length === 0 && "mt-auto")}
+                              trayStart={workingThreads.length === 0}
                               label={gt("Snoozed", { $context: "sidebar section" })}
                               count={snoozedThreads.length}
                               toggle={{
@@ -3771,6 +3773,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               className={cn(
                                 workingThreads.length + snoozedThreads.length === 0 && "mt-auto",
                               )}
+                              trayStart={workingThreads.length + snoozedThreads.length === 0}
                               label={gt("Settled", { $context: "sidebar section" })}
                               count={settledCount}
                               dragging={from !== null}
