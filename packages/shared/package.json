@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./chromeWebStore": {
+      "types": "./src/chromeWebStore.ts",
+      "import": "./src/chromeWebStore.ts"
+    },
     "./munimComputerUse": {
       "types": "./src/munimComputerUse.ts",
       "import": "./src/munimComputerUse.ts"

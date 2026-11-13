@@ -1874,6 +1874,7 @@ describe("DesktopWindow", () => {
           { preventDefault: vi.fn() },
           {
             linkURL: "mailto:restaurant%40example.com?subject=Hi",
+            selectionText: "",
             misspelledWord: "",
             dictionarySuggestions: [],
             mediaType: "none",
