@@ -622,6 +622,32 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       });
     });
 
+    it.effect.each([
+      { platform: "linux", detached: true },
+      // A detached child has no console on Windows, so vp would open a window.
+      { platform: "win32", detached: false },
+    ] as const)("spawns vp with detached $detached on $platform", ({ platform, detached }) =>
+      Effect.gen(function* () {
+        let captured: boolean | undefined;
+        const spawnerLayer = Layer.succeed(
+          ChildProcessSpawner.ChildProcessSpawner,
+          ChildProcessSpawner.make((command) => {
+            captured = (command as { readonly options?: { readonly detached?: boolean } }).options
+              ?.detached;
+            return Effect.succeed(mockProcess(0));
+          }),
+        );
+
+        yield* runDevRunnerWithInput(devServerInput).pipe(
+          Effect.provide(Layer.mergeAll(emptyConfigLayer, netServiceLayer, spawnerLayer)),
+          Effect.provideService(HostProcess.Platform, platform),
+          Effect.provideService(HostProcess.Environment, {}),
+        );
+
+        assert.equal(captured, detached);
+      }),
+    );
+
     it.effect("reports non-zero exits without manufacturing a cause", () => {
       const spawnerLayer = Layer.succeed(
         ChildProcessSpawner.ChildProcessSpawner,
