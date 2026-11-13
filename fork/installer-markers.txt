@@ -9,3 +9,4 @@ t3/compose
 T3 Code is adding its Chrome extension
 sidebar-row-status-rail
 Get extensions from the Chrome Web Store
+--color-sidebar-tray-edge
