@@ -15,6 +15,7 @@ function SortableSidebarMarker(props: {
   className?: string;
   children?: ReactNode;
   revealOverflow?: boolean;
+  trayStart?: boolean;
   "data-testid"?: string;
 }) {
   const { node, setNodeRef, transform, transition } = useSortable({
@@ -33,6 +34,7 @@ function SortableSidebarMarker(props: {
       ref={setNodeRef}
       data-thread-selection-safe
       data-testid={props["data-testid"]}
+      data-sidebar-tray-start={props.trayStart || undefined}
       className={cn("list-none", props.className)}
       style={{
         transform: CSS.Translate.toString(transform),
@@ -116,6 +118,8 @@ export function SidebarSectionHeader(props: {
   /** A muted trailing count. */
   count: number;
   className?: string;
+  /** The first shelf header, where the docked tray begins. */
+  trayStart?: boolean;
   dragging?: boolean;
   isDropTarget?: boolean;
   toggle: { expanded: boolean; onToggle: () => void };
@@ -130,13 +134,21 @@ export function SidebarSectionHeader(props: {
     <SortableSidebarMarker
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
-      className={cn("relative mx-0.5 h-8", props.className)}
+      trayStart={props.trayStart === true}
+      className={cn("relative h-8 px-0.5", props.className)}
     >
       <CollapsibleSectionHeader
         data-sidebar-row={`shelf:${shelf}`}
         onClick={props.toggle.onToggle}
         expanded={props.toggle.expanded}
-        tone={props.isDropTarget ? "accent" : props.dragging ? "emphasized" : "muted"}
+        variant="shelf"
+        tone={
+          props.isDropTarget
+            ? "accent"
+            : props.dragging || shelf === "working"
+              ? "emphasized"
+              : "muted"
+        }
         data-testid={`sidebar-${shelf}-shelf-toggle`}
         accessory={<span className="font-normal tabular-nums">{props.count}</span>}
       >
