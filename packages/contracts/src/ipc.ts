@@ -1139,6 +1139,50 @@ export const DesktopPreviewSetShownInputSchema = Schema.Struct({
   shown: Schema.Boolean,
 });
 
+export const DesktopPreviewExtensionSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  version: Schema.String,
+  /** Extensions without a toolbar action still show in the Extensions menu. */
+  hasAction: Schema.Boolean,
+  title: Schema.String,
+  badgeText: Schema.String,
+  badgeColor: Schema.NullOr(Schema.String),
+  iconDataUrl: Schema.NullOr(Schema.String),
+  optionsPage: Schema.Boolean,
+});
+export type DesktopPreviewExtension = typeof DesktopPreviewExtensionSchema.Type;
+
+export const DesktopPreviewExtensionsStateSchema = Schema.Struct({
+  /** False for incognito tabs and tabs whose page has not attached yet. */
+  supported: Schema.Boolean,
+  extensions: Schema.Array(DesktopPreviewExtensionSchema),
+});
+export type DesktopPreviewExtensionsState = typeof DesktopPreviewExtensionsStateSchema.Type;
+
+export const DesktopPreviewExtensionActivateInputSchema = Schema.Struct({
+  tabId: DesktopPreviewTabIdSchema,
+  extensionId: Schema.String,
+  button: Schema.Literals(["click", "contextmenu"]),
+  anchor: Schema.Struct({
+    x: Schema.Number,
+    y: Schema.Number,
+    width: Schema.Number,
+    height: Schema.Number,
+  }),
+});
+
+export const DesktopPreviewExtensionInstallInputSchema = Schema.Struct({
+  tabId: DesktopPreviewTabIdSchema,
+  /** A Chrome Web Store extension ID or detail-page URL. */
+  source: Schema.String.check(Schema.isMaxLength(2048)),
+});
+
+export const DesktopPreviewExtensionInputSchema = Schema.Struct({
+  tabId: DesktopPreviewTabIdSchema,
+  extensionId: Schema.String,
+});
+
 export const DesktopPreviewAnnotationThemeInputSchema = Schema.Struct({
   theme: DesktopPreviewAnnotationThemeSchema,
 });
@@ -1543,6 +1587,15 @@ export interface DesktopPreviewBridge {
   onPointerEvent: (listener: (event: DesktopPreviewPointerEvent) => void) => () => void;
   onOpenLink: (listener: (event: DesktopPreviewOpenLinkEvent) => void) => () => void;
   onFindResult: (listener: (event: DesktopPreviewFindResultEvent) => void) => () => void;
+  /** Chrome extensions in the tab's browser profile; absent in builds without extension support. */
+  extensions?: {
+    getState: (tabId: string) => Promise<DesktopPreviewExtensionsState>;
+    activate: (input: typeof DesktopPreviewExtensionActivateInputSchema.Type) => Promise<void>;
+    install: (tabId: string, source: string) => Promise<DesktopPreviewExtension>;
+    remove: (tabId: string, extensionId: string) => Promise<void>;
+    openOptions: (tabId: string, extensionId: string) => Promise<void>;
+    onChange: (listener: () => void) => () => void;
+  };
 }
 
 export type ConfirmDialogVariant = "default" | "destructive";

@@ -144,6 +144,12 @@ export const PREVIEW_STATE_CHANGE_CHANNEL = "desktop:preview-state-change";
 export const PREVIEW_POINTER_EVENT_CHANNEL = "desktop:preview-pointer-event";
 export const PREVIEW_OPEN_LINK_CHANNEL = "desktop:preview-open-link";
 export const PREVIEW_FIND_RESULT_CHANNEL = "desktop:preview-find-result";
+export const PREVIEW_EXTENSIONS_STATE_CHANNEL = "desktop:preview-extensions-state";
+export const PREVIEW_EXTENSIONS_ACTIVATE_CHANNEL = "desktop:preview-extensions-activate";
+export const PREVIEW_EXTENSIONS_INSTALL_CHANNEL = "desktop:preview-extensions-install";
+export const PREVIEW_EXTENSIONS_REMOVE_CHANNEL = "desktop:preview-extensions-remove";
+export const PREVIEW_EXTENSIONS_OPTIONS_CHANNEL = "desktop:preview-extensions-options";
+export const PREVIEW_EXTENSIONS_CHANGED_CHANNEL = "desktop:preview-extensions-changed";
 
 export const MAC_PERMISSION_HELPER_CHANNEL = "desktop:mac-permission-helper";
 

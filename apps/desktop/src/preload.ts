@@ -657,5 +657,26 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       return () =>
         ipcRenderer.removeListener(IpcChannels.PREVIEW_FIND_RESULT_CHANNEL, wrappedListener);
     },
+    extensions: {
+      getState: (tabId) =>
+        ipcRenderer.invoke(IpcChannels.PREVIEW_EXTENSIONS_STATE_CHANNEL, { tabId }),
+      activate: (input) =>
+        ipcRenderer.invoke(IpcChannels.PREVIEW_EXTENSIONS_ACTIVATE_CHANNEL, input),
+      install: (tabId, source) =>
+        ipcRenderer.invoke(IpcChannels.PREVIEW_EXTENSIONS_INSTALL_CHANNEL, { tabId, source }),
+      remove: (tabId, extensionId) =>
+        ipcRenderer.invoke(IpcChannels.PREVIEW_EXTENSIONS_REMOVE_CHANNEL, { tabId, extensionId }),
+      openOptions: (tabId, extensionId) =>
+        ipcRenderer.invoke(IpcChannels.PREVIEW_EXTENSIONS_OPTIONS_CHANNEL, { tabId, extensionId }),
+      onChange: (listener) => {
+        const wrappedListener = () => listener();
+        ipcRenderer.on(IpcChannels.PREVIEW_EXTENSIONS_CHANGED_CHANNEL, wrappedListener);
+        return () =>
+          ipcRenderer.removeListener(
+            IpcChannels.PREVIEW_EXTENSIONS_CHANGED_CHANNEL,
+            wrappedListener,
+          );
+      },
+    },
   },
 } satisfies DesktopBridge);

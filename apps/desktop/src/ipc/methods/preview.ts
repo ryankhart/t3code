@@ -21,6 +21,11 @@ import {
   DesktopPreviewClearDataInputSchema,
   DesktopPreviewImportCookiesInputSchema,
   DesktopPreviewCreateTabInputSchema,
+  DesktopPreviewExtensionActivateInputSchema,
+  DesktopPreviewExtensionInputSchema,
+  DesktopPreviewExtensionInstallInputSchema,
+  DesktopPreviewExtensionSchema,
+  DesktopPreviewExtensionsStateSchema,
   DesktopPreviewTabInputSchema,
   DesktopPreviewWebviewConfigSchema,
   PreviewAnnotationSubmissionResultSchema,
@@ -37,6 +42,7 @@ import * as NodeURL from "node:url";
 
 import * as ElectronWindow from "../../electron/ElectronWindow.ts";
 import * as BrowserImport from "../../preview/BrowserImport/BrowserImport.ts";
+import * as PreviewExtensions from "../../preview/Extensions.ts";
 import * as PreviewManager from "../../preview/Manager.ts";
 import { normalizeCaptureFailure } from "../../preview/captureErrors.ts";
 import * as DesktopClientSettings from "../../settings/DesktopClientSettings.ts";
@@ -63,6 +69,15 @@ export const installPreviewEventForwarding = Effect.fn(
   );
   yield* manager.subscribeFindResults((event) =>
     electronWindow.sendAll(IpcChannels.PREVIEW_FIND_RESULT_CHANNEL, event),
+  );
+  const runFork = Effect.runForkWith(yield* Effect.context<never>());
+  yield* Effect.acquireRelease(
+    Effect.sync(() =>
+      PreviewExtensions.subscribeExtensionChanges(() =>
+        runFork(electronWindow.sendAll(IpcChannels.PREVIEW_EXTENSIONS_CHANGED_CHANNEL)),
+      ),
+    ),
+    (unsubscribe) => Effect.sync(unsubscribe),
   );
 });
 
@@ -349,9 +364,21 @@ const getPreviewConfig = DesktopIpc.makeIpcMethod({
     const manager = yield* PreviewManager.PreviewManager;
     const { scope, persistent, namespace } = resolvePartitionScope(environmentId, profileId);
     // Session creation installs UA and permission handlers before a guest can attach.
-    yield* manager.getBrowserSession(scope, persistent, namespace);
+    const session = yield* manager.getBrowserSession(scope, persistent, namespace);
+    const partition = yield* manager.getBrowserPartition(scope, persistent, namespace);
+    // Electron supports extensions only in persistent sessions.
+    if (persistent) {
+      yield* Effect.tryPromise({
+        try: () => PreviewExtensions.enableExtensions(session, partition),
+        catch: (cause) => new PreviewExtensionError({ operation: "enable", cause }),
+      }).pipe(
+        Effect.catch((cause) =>
+          Effect.logWarning("Preview extensions failed to start.", { cause }),
+        ),
+      );
+    }
     return {
-      partition: yield* manager.getBrowserPartition(scope, persistent, namespace),
+      partition,
       webPreferences: PREVIEW_WEBVIEW_PREFERENCES,
       preloadUrl: NodeURL.pathToFileURL(`${__dirname}/preview-pick-preload.cjs`).href,
     };
@@ -475,6 +502,90 @@ const saveRecording = DesktopIpc.makeIpcMethod({
   }),
 });
 
+class PreviewExtensionError extends Schema.TaggedError<PreviewExtensionError>()(
+  "PreviewExtensionError",
+  { operation: Schema.String, cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return this.cause instanceof Error ? this.cause.message : String(this.cause);
+  }
+}
+
+const withTabGuest = Effect.fn("desktop.ipc.preview.withTabGuest")(function* <A>(
+  operation: string,
+  tabId: string,
+  run: (guest: Electron.WebContents) => A | Promise<A>,
+) {
+  const manager = yield* PreviewManager.PreviewManager;
+  const guest = yield* manager.getTabWebContents(tabId);
+  return yield* Effect.tryPromise({
+    try: async () => run(guest),
+    catch: (cause) => new PreviewExtensionError({ operation, cause }),
+  });
+});
+
+const extensionsState = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.PREVIEW_EXTENSIONS_STATE_CHANNEL,
+  payload: DesktopPreviewTabInputSchema,
+  result: DesktopPreviewExtensionsStateSchema,
+  handler: Effect.fn("desktop.ipc.preview.extensionsState")(function* ({ tabId }) {
+    const manager = yield* PreviewManager.PreviewManager;
+    const guest = yield* Effect.option(manager.getTabWebContents(tabId));
+    if (Option.isNone(guest)) return { supported: false, extensions: [] };
+    return yield* Effect.tryPromise({
+      try: () => PreviewExtensions.extensionsState(guest.value),
+      catch: (cause) => new PreviewExtensionError({ operation: "state", cause }),
+    });
+  }),
+});
+
+const activateExtension = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.PREVIEW_EXTENSIONS_ACTIVATE_CHANNEL,
+  payload: DesktopPreviewExtensionActivateInputSchema,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.preview.activateExtension")(function* ({ tabId, ...input }) {
+    yield* withTabGuest("activate", tabId, (guest) =>
+      PreviewExtensions.activateExtension(guest, input),
+    );
+  }),
+});
+
+const installExtension = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.PREVIEW_EXTENSIONS_INSTALL_CHANNEL,
+  payload: DesktopPreviewExtensionInstallInputSchema,
+  result: DesktopPreviewExtensionSchema,
+  handler: Effect.fn("desktop.ipc.preview.installExtension")(function* ({ tabId, source }) {
+    return yield* withTabGuest("install", tabId, (guest) =>
+      PreviewExtensions.installWebStoreExtension(guest, source),
+    );
+  }),
+});
+
+const removeExtension = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.PREVIEW_EXTENSIONS_REMOVE_CHANNEL,
+  payload: DesktopPreviewExtensionInputSchema,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.preview.removeExtension")(function* ({ tabId, extensionId }) {
+    yield* withTabGuest("remove", tabId, (guest) =>
+      PreviewExtensions.removeExtension(guest, extensionId),
+    );
+  }),
+});
+
+const openExtensionOptions = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.PREVIEW_EXTENSIONS_OPTIONS_CHANNEL,
+  payload: DesktopPreviewExtensionInputSchema,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.preview.openExtensionOptions")(function* ({
+    tabId,
+    extensionId,
+  }) {
+    yield* withTabGuest("options", tabId, (guest) =>
+      PreviewExtensions.openExtensionOptions(guest, extensionId),
+    );
+  }),
+});
+
 export const methods = [
   setForwardedShortcuts,
   updateAnnotationVoice,
@@ -512,4 +623,9 @@ export const methods = [
   startRecording,
   stopRecording,
   saveRecording,
+  extensionsState,
+  activateExtension,
+  installExtension,
+  removeExtension,
+  openExtensionOptions,
 ] as const;

@@ -70,6 +70,7 @@ import { closePreviewSession } from "./closePreviewSession";
 import { openPreviewSession } from "./openPreviewSession";
 import { showPreviewPopup } from "./showPreviewPopup";
 import { PreviewChromeRow } from "./PreviewChromeRow";
+import { PreviewExtensionsToolbar } from "./PreviewExtensionsToolbar";
 import { PreviewEmptyState } from "./PreviewEmptyState";
 import { PreviewMoreMenu, type PreviewMoreMenuActions } from "./PreviewMoreMenu";
 import { commitBrowserViewportChange } from "~/browser/browserViewportActions";
@@ -1023,31 +1024,41 @@ export function PreviewView({
         }
         trailingActions={
           moreMenuActions ? (
-            <PreviewMoreMenu
-              enabled={
-                runtimeTabId !== null &&
-                (serverOwnsRendering || (desktopOverlay?.hasWebContents ?? false))
-              }
-              actions={moreMenuActions}
-              {...(moveTarget
-                ? { move: { label: moveLabel, onMove: () => void handleMoveTab() } }
-                : {})}
-              profileName={activeProfileName}
-              findShortcutLabel={shortcutLabelForCommand(keybindings, "preview.find", {
-                context: { previewFocus: true },
-              })}
-              zoomFactor={
-                serverOwnsRendering ? serverZoomFactor : (desktopOverlay?.zoomFactor ?? 1)
-              }
-              colorScheme={
-                serverOwnsRendering
-                  ? (snapshot?.colorScheme ?? "system")
-                  : (desktopOverlay?.colorScheme ?? "system")
-              }
-              deviceToolbarVisible={viewport._tag !== "fill"}
-              onToggleDeviceToolbar={handleToggleDeviceToolbar}
-              nativePictureInPicture={desktopOverlay?.pictureInPicture ?? false}
-            />
+            <>
+              {!isServerTab ? (
+                <PreviewExtensionsToolbar
+                  runtimeTabId={runtimeTabId}
+                  attached={desktopOverlay?.hasWebContents ?? false}
+                  url={url}
+                  onNavigate={(next) => void handleSubmitUrl(next)}
+                />
+              ) : null}
+              <PreviewMoreMenu
+                enabled={
+                  runtimeTabId !== null &&
+                  (serverOwnsRendering || (desktopOverlay?.hasWebContents ?? false))
+                }
+                actions={moreMenuActions}
+                {...(moveTarget
+                  ? { move: { label: moveLabel, onMove: () => void handleMoveTab() } }
+                  : {})}
+                profileName={activeProfileName}
+                findShortcutLabel={shortcutLabelForCommand(keybindings, "preview.find", {
+                  context: { previewFocus: true },
+                })}
+                zoomFactor={
+                  serverOwnsRendering ? serverZoomFactor : (desktopOverlay?.zoomFactor ?? 1)
+                }
+                colorScheme={
+                  serverOwnsRendering
+                    ? (snapshot?.colorScheme ?? "system")
+                    : (desktopOverlay?.colorScheme ?? "system")
+                }
+                deviceToolbarVisible={viewport._tag !== "fill"}
+                onToggleDeviceToolbar={handleToggleDeviceToolbar}
+                nativePictureInPicture={desktopOverlay?.pictureInPicture ?? false}
+              />
+            </>
           ) : null
         }
       />
