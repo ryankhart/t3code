@@ -42,6 +42,7 @@ import {
   TRACKPAD_SCROLL_END_CHANNEL,
   WINDOW_FULLSCREEN_STATE_CHANNEL,
 } from "../ipc/channels.ts";
+import { extensionContextMenuItems, trackExtensionTab } from "../preview/Extensions.ts";
 import {
   PASSKEY_BRIDGE_ARGUMENT,
   PRIMARY_PASTE_DISABLED_ARGUMENT,
@@ -787,7 +788,9 @@ export const make = Effect.gen(function* () {
         // Right-clicking a guest may leave native editing roles targeting the host renderer.
         contents.focus();
 
-        const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
+        const menuTemplate: Array<Electron.MenuItemConstructorOptions | Electron.MenuItem> = [];
+        const extensionItems = extensionContextMenuItems(contents, params);
+        if (extensionItems.length > 0) menuTemplate.push(...extensionItems, { type: "separator" });
 
         if (isBrowserContents) {
           menuTemplate.push(
@@ -907,6 +910,7 @@ export const make = Effect.gen(function* () {
     installContextMenu(window, window.webContents);
     window.webContents.on("did-attach-webview", (_event, contents) => {
       installContextMenu(window, contents, true);
+      trackExtensionTab(contents);
       void runPromise(previewManager.prepareWebview(contents));
     });
 
