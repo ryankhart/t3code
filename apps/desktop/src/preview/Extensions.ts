@@ -16,6 +16,13 @@ let webStoreLibrary: typeof import("electron-chrome-web-store") | undefined;
 const instanceFor = (session: Session) =>
   extensionsLibrary?.ElectronChromeExtensions.fromSession(session);
 
+interface AnchorRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 interface ActionDetails {
   readonly title?: string;
   readonly text?: string;
@@ -42,7 +49,7 @@ interface BrowserActionInternals {
       readonly eventType: "click" | "contextmenu";
       readonly extensionId: string;
       readonly tabId: number;
-      readonly anchorRect: { x: number; y: number; width: number; height: number };
+      readonly anchorRect: AnchorRect;
       readonly alignment?: string;
     },
   ): void;
@@ -231,12 +238,26 @@ const requireExtensions = (guest: WebContents) => {
   return { extensions, extensionsPath, webStore: webStoreLibrary };
 };
 
+// The toolbar is measured in the host window's CSS pixels; popups and menus take window points.
+export const anchorInWindowPoints = (
+  guest: Pick<WebContents, "hostWebContents">,
+  anchor: AnchorRect,
+): AnchorRect => {
+  const zoom = guest.hostWebContents?.getZoomFactor() ?? 1;
+  return {
+    x: anchor.x * zoom,
+    y: anchor.y * zoom,
+    width: anchor.width * zoom,
+    height: anchor.height * zoom,
+  };
+};
+
 export function activateExtension(
   guest: WebContents,
   input: {
     readonly extensionId: string;
     readonly button: "click" | "contextmenu";
-    readonly anchor: { x: number; y: number; width: number; height: number };
+    readonly anchor: AnchorRect;
   },
 ): void {
   const { extensions } = requireExtensions(guest);
@@ -248,7 +269,7 @@ export function activateExtension(
       eventType: input.button,
       extensionId: input.extensionId,
       tabId: guest.id,
-      anchorRect: input.anchor,
+      anchorRect: anchorInWindowPoints(guest, input.anchor),
     },
   );
 }
