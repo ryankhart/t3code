@@ -3,7 +3,7 @@ import {
   runAtomCommand,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { threadHasScratchFolder } from "@t3tools/client-runtime/state/projects";
+import { threadHasScratchFolder, threadMoveNote } from "@t3tools/client-runtime/state/projects";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -86,16 +86,20 @@ export function useThreadProjectActions(thread: ThreadProjectRef): {
     () => ({
       canTurnIntoProject: promotable,
       moveTargets: movable
-        ? resolveThreadMoveTargets({ environmentId, projectId }, projects, scratchRoot)
+        ? resolveThreadMoveTargets(
+            { environmentId, projectId, worktreePath },
+            projects,
+            scratchRoot,
+          )
         : NO_MOVE_TARGETS,
     }),
-    [promotable, movable, environmentId, projectId, projects, scratchRoot],
+    [promotable, movable, environmentId, projectId, worktreePath, projects, scratchRoot],
   );
 }
 
 /**
- * Files a No project thread under an existing project. The server keeps the thread's own folder
- * as its working folder, so its provider session resumes unchanged.
+ * Moves a No project thread into an existing project. The server makes the project folder its
+ * working folder, or says why it kept its own.
  */
 export async function moveThreadToProject(
   thread: EnvironmentThreadShell,
@@ -127,7 +131,7 @@ export async function moveThreadToProject(
     showThreadActionNotice({
       phase: "success",
       label: project ? `Moved to ${project.title}` : "Moved to project",
-      description: null,
+      description: threadMoveNote(result.value),
     });
     return true;
   }

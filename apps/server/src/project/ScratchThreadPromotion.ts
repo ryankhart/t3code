@@ -1,7 +1,9 @@
 import {
   CommandId,
+  type OrchestrationV2ProviderThread,
   type OrchestrationV2ThreadShell,
   ProjectId,
+  type ProjectMoveThreadResult,
   type ThreadId,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
@@ -42,16 +44,28 @@ export class ScratchThreadPromotion extends Context.Service<
       readonly threadId: ThreadId;
     }) => Effect.Effect<{ readonly projectId: ProjectId }, ScratchThreadPromotionError>;
     /**
-     * Files a thread that works in its own No project folder under an existing project,
-     * whichever project holds it now. The thread keeps that folder as its working folder,
-     * so its provider session resumes unchanged.
+     * Moves a thread that works in its own No project folder into an existing project, whichever
+     * project holds it now, so it works in the project folder and resumes its session there. It
+     * keeps its own folder when its provider is not known to resume from another one.
      */
     readonly moveInto: (input: {
       readonly threadId: ThreadId;
       readonly projectId: ProjectId;
-    }) => Effect.Effect<{ readonly projectId: ProjectId }, ScratchThreadPromotionError>;
+    }) => Effect.Effect<ProjectMoveThreadResult, ScratchThreadPromotionError>;
   }
 >()("t3/project/ScratchThreadPromotion") {}
+
+// Drivers whose saved conversation was seen resuming from a different folder in the app.
+const FOLDER_SWITCH_DRIVERS: ReadonlySet<string> = new Set(["claudeAgent", "codex"]);
+
+/** Whether every conversation the thread could resume survives a change of working folder. */
+export const resumesFromAnotherFolder = (
+  providerThreads: ReadonlyArray<Pick<OrchestrationV2ProviderThread, "driver" | "nativeThreadRef">>,
+) =>
+  providerThreads.every(
+    (providerThread) =>
+      providerThread.nativeThreadRef === null || FOLDER_SWITCH_DRIVERS.has(providerThread.driver),
+  );
 
 const make = Effect.gen(function* () {
   const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
@@ -176,29 +190,61 @@ const make = Effect.gen(function* () {
       return yield* new ScratchThreadPromotionError({ reason: "That project no longer exists." });
     }
     const records = yield* threads
-      .getThreadRecords(thread.id, ["runs", "runtimeRequests"], { turnItemTypes: [] })
+      .getThreadRecords(thread.id, ["runs", "runtimeRequests", "providerThreads"], {
+        turnItemTypes: [],
+      })
       .pipe(Effect.mapError(fail(`Could not read "${thread.title}".`)));
     if (threadHasUnfinishedWork(records)) {
       return yield* new ScratchThreadPromotionError({
         reason: `"${thread.title}" is still working. Finish or stop it first.`,
       });
     }
+    const inProjectFolder = folder === target.value.workspaceRoot;
+    const switchFolder = !inProjectFolder && resumesFromAnotherFolder(records.providerThreads);
     return yield* Effect.uninterruptible(
       Effect.gen(function* () {
         yield* scheduledTasks
           .moveThreadTasks({ threadIds: [thread.id], projectId: input.projectId })
           .pipe(Effect.mapError(fail("Could not move the thread's scheduled tasks.")));
-        const commandId = CommandId.make(`scratch-move:${yield* randomId}`);
         yield* threads
           .dispatch({
             type: "thread.project.adopt-folder",
-            commandId,
+            commandId: CommandId.make(`scratch-move:${yield* randomId}`),
             threadId: thread.id,
             projectId: input.projectId,
             keepFolder: true,
           })
           .pipe(Effect.mapError(fail(`Could not move "${thread.title}". Try again.`)));
-        return { projectId: input.projectId };
+        if (!switchFolder) return { projectId: input.projectId, folderSwitched: inProjectFolder };
+        // The same change a worktree handoff makes: it ends the provider sessions, and the
+        // next message resumes the conversation in the project folder.
+        yield* threads
+          .dispatch({
+            type: "thread.metadata.update",
+            commandId: CommandId.make(`scratch-move-folder:${yield* randomId}`),
+            threadId: thread.id,
+            worktreePath: null,
+            expectedWorktreePath: folder,
+          })
+          .pipe(
+            Effect.mapError((error) =>
+              fail(
+                `"${thread.title}" is filed under the project but still works in its own folder. ${
+                  "cause" in error && typeof error.cause === "string"
+                    ? error.cause
+                    : "Move it to the project again to finish."
+                }`,
+              )(error),
+            ),
+          );
+        const leftFiles = yield* fileSystem
+          .readDirectory(folder)
+          .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+        return {
+          projectId: input.projectId,
+          folderSwitched: true,
+          ...(leftFiles.length > 0 ? { leftFolder: folder } : {}),
+        };
       }),
     );
   });

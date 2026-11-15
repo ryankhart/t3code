@@ -166,7 +166,7 @@ import {
   resolveThreadRouteTarget,
 } from "../threadRoutes";
 import type { SidebarThreadSummary } from "../types";
-import { isScratchProject } from "@t3tools/client-runtime/state/projects";
+import { isScratchProject, threadMoveNote } from "@t3tools/client-runtime/state/projects";
 import { cn } from "~/lib/utils";
 import { ProjectEnvironmentBadge } from "./ProjectEnvironmentBadge";
 import { ProjectRowActions } from "./ProjectComboboxRow";
@@ -2681,7 +2681,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             toastManager.add({
               type: "success",
               title: "Moved to project",
-              description: thread.title,
+              description: threadMoveNote(result.value) ?? thread.title,
             });
           } else if (!isAtomCommandInterrupted(result)) {
             const error = squashAtomCommandFailure(result);
