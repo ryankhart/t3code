@@ -13643,6 +13643,57 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
         error.message,
         "Only a No project thread with its own folder can become a project.",
       );
+      const moveError = yield* promotion
+        .moveInto({ threadId, projectId: ProjectId.make("promotion-regular-target") })
+        .pipe(Effect.flip);
+      assert.equal(
+        moveError.message,
+        "Only a thread that started under No project can move to a project.",
+      );
+    }),
+  );
+
+  it.effect("files a thread under a project and keeps its folder, whatever holds it now", () =>
+    Effect.gen(function* () {
+      const promotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
+      const projects = yield* ProjectService.ProjectService;
+      const { folder, createThread } = yield* setup("files");
+      const createTarget = (name: string) =>
+        projects
+          .create({
+            commandId: CommandId.make(`promotion-files-${name}`),
+            projectId: ProjectId.make(`promotion-files-${name}`),
+            title: name,
+            workspaceRoot: `/tmp/runtime-layer-promotion-files-${name}`,
+          })
+          .pipe(Effect.map((project) => project.id));
+      const firstId = yield* createTarget("first");
+      const secondId = yield* createTarget("second");
+      const assertFiled = Effect.fn(function* (
+        threadId: ThreadId,
+        projectId: ProjectId,
+        ownFolder: string,
+      ) {
+        assert.deepEqual(yield* promotion.moveInto({ threadId, projectId }), { projectId });
+        const shell = yield* shellOf(threadId);
+        assert.equal(shell?.projectId, projectId);
+        assert.equal(shell?.worktreePath, ownFolder);
+      });
+
+      const scratchId = yield* createThread("scratch", folder);
+      yield* assertFiled(scratchId, firstId, folder);
+      yield* assertFiled(scratchId, secondId, folder);
+
+      const ownFolder = `${folder}-own`;
+      const promotedId = yield* createThread("promoted", ownFolder);
+      yield* promotion.promote({ threadId: promotedId });
+      assert.isNull((yield* shellOf(promotedId))?.worktreePath);
+      yield* assertFiled(promotedId, firstId, ownFolder);
+
+      const toScratch = yield* promotion
+        .moveInto({ threadId: promotedId, projectId: SCRATCH_PROJECT_ID })
+        .pipe(Effect.flip);
+      assert.equal(toScratch.message, "Pick a project to move it to.");
     }),
   );
 });
