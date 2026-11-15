@@ -44,6 +44,8 @@ The fork's desktop features, ported to the Android app (`apps/mobile`). It is si
 
 Each release's APK is signed with the fork's own key, so it installs over the previous one; its Android version code comes from the release version (0.1.5301 becomes 105301). Over-the-air updates are off in these builds, because upstream's would replace the fork's features.
 
+- **Updates itself:** at launch, and when you come back after 30 minutes or more away, the app checks this repository's latest release. On Wi-Fi (any network Android doesn't call metered), it downloads a newer APK, checks its SHA-256 against the release, and installs it the next time you leave the app, with no prompts; the next launch is the new version. Android needs "Install unknown apps" allowed for T3 Code Fork once, and the app asks for it the first time an update is ready. Only release builds do this, because the build sets `EXPO_PUBLIC_T3_APK_UPDATES_REPO`. If Android still wants a tap, its install screen opens when you return. The code is in `apps/mobile/modules/t3-apk-updater` and `apps/mobile/src/features/updates/apk-updates.ts`.
+
 The phone app needs `crypto.getRandomValues`, which Hermes lacks; `apps/mobile/src/lib/cryptoPolyfill.ts` provides it.
 
 ## Repository secrets
