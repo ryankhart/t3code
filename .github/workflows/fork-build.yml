@@ -299,6 +299,8 @@ jobs:
           T3CODE_APP_NAME: T3 Code Fork
           # Upstream's over-the-air updates would swap in a JS bundle without the fork's features.
           T3CODE_MOBILE_UPDATES_ENABLED: "0"
+          # The fork's own updater installs newer APKs from this repository's releases.
+          EXPO_PUBLIC_T3_APK_UPDATES_REPO: ${{ github.repository }}
           EXPO_NO_TELEMETRY: "1"
           NODE_OPTIONS: --max-old-space-size=4096
         run: |
