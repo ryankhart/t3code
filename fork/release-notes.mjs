@@ -48,7 +48,9 @@ const previousBase =
   previousTag && git("describe", "--tags", "--match", "munim-v*", "--abbrev=0", previousTag);
 const shipped = new Set(previousTag ? subjects([previousTag, `^${previousBase}`]) : []);
 
-const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+// Leaves names like "iOS" and "preview_navigate" alone.
+const capital = (text) =>
+  /^[a-z][a-z'-]*(?=[\s,:.]|$)/.test(text) ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 const groups = { feat: [], fix: [], perf: [] };
 for (const subject of subjects([ref, `^${baseTag}`]).reverse()) {
   if (shipped.has(subject)) continue;
