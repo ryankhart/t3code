@@ -399,7 +399,7 @@ async function defaultConfirmInstallNow(): Promise<boolean> {
   });
 }
 
-async function defaultFlushPendingWrites(): Promise<void> {
+export async function defaultFlushPendingWrites(): Promise<void> {
   const results = await Promise.allSettled([
     import("../../state/use-composer-drafts").then((drafts) => drafts.flushComposerDrafts()),
     import("../../state/thread-outbox").then((outbox) => outbox.flushThreadOutbox()),
@@ -410,7 +410,7 @@ async function defaultFlushPendingWrites(): Promise<void> {
   if (failed) throw failed.reason;
 }
 
-async function defaultIsSafeToRestartInBackground(): Promise<boolean> {
+export async function defaultIsSafeToRestartInBackground(): Promise<boolean> {
   const { isForegroundHandoffActive } = await import("../../lib/foreground-handoff");
   if (isForegroundHandoffActive()) return false;
   return AppState.currentState === "background";
