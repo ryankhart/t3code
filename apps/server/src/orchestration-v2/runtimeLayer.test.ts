@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off - the No project promotion tests use temporary Node paths.
 import { PullRequestProviderError } from "@t3tools/source-control-core/server/PullRequestProvider";
 import { PullRequestUnavailableError, SourceControlProviderKind } from "@t3tools/contracts";
 import { limitRecoveryCommand } from "./UsageLimitRecoveryWorker.ts";
@@ -10,6 +11,8 @@ import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderS
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
 import { assert, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
 import {
@@ -13455,7 +13458,7 @@ it.layer(layerTest)("snooze queued runs", (it) => {
   );
 });
 
-const SCRATCH_ROOT = "/tmp/runtime-layer-promotion-scratch";
+const SCRATCH_ROOT = NodePath.join(NodeOS.tmpdir(), "t3-runtime-layer-promotion-scratch");
 const SCRATCH_PROJECT_ID = ProjectId.make("runtime-layer-promotion-scratch");
 const layerScratchPromotionTest = ScratchThreadPromotion.layer.pipe(
   Layer.provide(
@@ -13473,7 +13476,7 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
   const setup = Effect.fn(function* (name: string) {
     const projects = yield* ProjectService.ProjectService;
     const orchestrator = yield* Orchestrator.OrchestratorV2;
-    const folder = `${SCRATCH_ROOT}/2026-01-01-${name}`;
+    const folder = NodePath.join(SCRATCH_ROOT, `2026-01-01-${name}`);
     if (Option.isNone(yield* projects.getById(SCRATCH_PROJECT_ID))) {
       yield* projects.create({
         commandId: CommandId.make("promotion-scratch-create"),
@@ -13515,7 +13518,10 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
       const { folder, createThread } = yield* setup("moves");
       const threadId = yield* createThread("main", folder);
       const siblingId = yield* createThread("sibling", folder);
-      const otherId = yield* createThread("other", `${SCRATCH_ROOT}/2026-01-01-elsewhere`);
+      const otherId = yield* createThread(
+        "other",
+        NodePath.join(SCRATCH_ROOT, "2026-01-01-elsewhere"),
+      );
       const { task } = yield* tasks.upsert({
         id: ScheduledTaskId.make("promotion-moves-bound"),
         title: "Bound",
@@ -13653,10 +13659,12 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
     }),
   );
 
-  it.effect("files a thread under a project and keeps its folder, whatever holds it now", () =>
+  it.effect("moves a thread into a project's folder, whatever holds it now", () =>
     Effect.gen(function* () {
       const promotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
       const projects = yield* ProjectService.ProjectService;
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const fileSystem = yield* FileSystem.FileSystem;
       const { folder, createThread } = yield* setup("files");
       const createTarget = (name: string) =>
         projects
@@ -13669,31 +13677,81 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
           .pipe(Effect.map((project) => project.id));
       const firstId = yield* createTarget("first");
       const secondId = yield* createTarget("second");
-      const assertFiled = Effect.fn(function* (
+      const assertMoved = Effect.fn(function* (
         threadId: ThreadId,
         projectId: ProjectId,
-        ownFolder: string,
+        leftFolder?: string,
       ) {
-        assert.deepEqual(yield* promotion.moveInto({ threadId, projectId }), { projectId });
+        assert.deepEqual(yield* promotion.moveInto({ threadId, projectId }), {
+          projectId,
+          folderSwitched: true,
+          ...(leftFolder === undefined ? {} : { leftFolder }),
+        });
         const shell = yield* shellOf(threadId);
         assert.equal(shell?.projectId, projectId);
-        assert.equal(shell?.worktreePath, ownFolder);
+        assert.isNull(shell?.worktreePath);
       });
 
       const scratchId = yield* createThread("scratch", folder);
-      yield* assertFiled(scratchId, firstId, folder);
-      yield* assertFiled(scratchId, secondId, folder);
+      yield* assertMoved(scratchId, firstId);
+      const fromProject = yield* promotion
+        .moveInto({ threadId: scratchId, projectId: secondId })
+        .pipe(Effect.flip);
+      assert.equal(
+        fromProject.message,
+        "Only a thread that started under No project can move to a project.",
+      );
 
-      const ownFolder = `${folder}-own`;
-      const promotedId = yield* createThread("promoted", ownFolder);
+      const withFiles = `${folder}-with-files`;
+      yield* Effect.addFinalizer(() =>
+        fileSystem.remove(SCRATCH_ROOT, { recursive: true }).pipe(Effect.ignore),
+      );
+      yield* fileSystem.makeDirectory(withFiles, { recursive: true });
+      yield* fileSystem.writeFileString(NodePath.join(withFiles, "notes.md"), "kept");
+      const withFilesId = yield* createThread("with-files", withFiles);
+      yield* assertMoved(withFilesId, firstId, withFiles);
+      assert.isTrue(yield* fileSystem.exists(NodePath.join(withFiles, "notes.md")));
+
+      const promotedId = yield* createThread("promoted", `${folder}-own`);
       yield* promotion.promote({ threadId: promotedId });
-      assert.isNull((yield* shellOf(promotedId))?.worktreePath);
-      yield* assertFiled(promotedId, firstId, ownFolder);
+      yield* assertMoved(promotedId, firstId);
 
+      // An earlier build filed the thread under the project and left it in its own folder.
+      const filedId = yield* createThread("filed", `${folder}-filed`);
+      yield* orchestrator.dispatch({
+        type: "thread.project.adopt-folder",
+        commandId: CommandId.make("promotion-files-filed-adopt"),
+        threadId: filedId,
+        projectId: firstId,
+        keepFolder: true,
+      });
+      yield* assertMoved(filedId, firstId);
+
+      const stayingId = yield* createThread("staying", `${folder}-staying`);
       const toScratch = yield* promotion
-        .moveInto({ threadId: promotedId, projectId: SCRATCH_PROJECT_ID })
+        .moveInto({ threadId: stayingId, projectId: SCRATCH_PROJECT_ID })
         .pipe(Effect.flip);
       assert.equal(toScratch.message, "Pick a project to move it to.");
+
+      const conversation = (driver: ProviderDriverKind, nativeId: string | null) => ({
+        driver,
+        nativeThreadRef:
+          nativeId === null ? null : { driver, nativeId, strength: "strong" as const },
+      });
+      const { resumesFromAnotherFolder } = ScratchThreadPromotion;
+      assert.isTrue(
+        resumesFromAnotherFolder([
+          conversation(claudeDriver, "session"),
+          conversation(driver, "thread"),
+          conversation(antigravityDriver, null),
+        ]),
+      );
+      assert.isFalse(
+        resumesFromAnotherFolder([
+          conversation(claudeDriver, "session"),
+          conversation(antigravityDriver, "conversation"),
+        ]),
+      );
     }),
   );
 });

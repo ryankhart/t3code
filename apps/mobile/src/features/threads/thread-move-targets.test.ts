@@ -35,7 +35,7 @@ function makeProject(
 }
 
 describe("resolveThreadMoveTargets", () => {
-  const thread = { environmentId: "pc", projectId: "scratch" };
+  const thread = { environmentId: "pc", projectId: "scratch", worktreePath: "/work/scratch/a" };
 
   it("lists this environment's real, unarchived projects, pinned first, then by title", () => {
     const targets = resolveThreadMoveTargets(thread, [
@@ -59,6 +59,17 @@ describe("resolveThreadMoveTargets", () => {
       "/work/other-scratch",
     );
     expect(targets.map((target) => target.title)).toEqual(["Alpha"]);
+  });
+
+  it("offers the thread's own project only while the thread keeps its own folder", () => {
+    const projects = [makeProject("alpha", { title: "Alpha" }), makeProject("beta")];
+    const titles = (worktreePath: string | null) =>
+      resolveThreadMoveTargets(
+        { environmentId: "pc", projectId: "alpha", worktreePath },
+        projects,
+      ).map((target) => target.title);
+    expect(titles("/work/scratch/a")).toEqual(["Alpha", "beta"]);
+    expect(titles(null)).toEqual(["beta"]);
   });
 
   it("offers nothing when the environment has no real projects", () => {

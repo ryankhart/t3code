@@ -7,12 +7,17 @@ export interface ThreadMoveTarget {
 }
 
 /**
- * Projects a No project thread can be filed under, as on desktop: same environment, a real
- * project (not the No project folder, whether flagged or found by the server's scratch root),
- * not archived. Pinned projects first, then by title.
+ * Projects a No project thread can move to, as on desktop: same environment, a real project
+ * (not the No project folder, whether flagged or found by the server's scratch root), not
+ * archived. Pinned projects first, then by title. A thread filed under a project while it kept
+ * its own folder is offered that project too, so picking it finishes the move.
  */
 export function resolveThreadMoveTargets(
-  thread: { readonly environmentId: string; readonly projectId: string },
+  thread: {
+    readonly environmentId: string;
+    readonly projectId: string;
+    readonly worktreePath: string | null;
+  },
   projects: ReadonlyArray<EnvironmentProject>,
   scratchWorkspaceRoot?: string | null,
 ): ReadonlyArray<ThreadMoveTarget> {
@@ -20,7 +25,7 @@ export function resolveThreadMoveTargets(
     .filter(
       (project) =>
         project.environmentId === thread.environmentId &&
-        project.id !== thread.projectId &&
+        (project.id !== thread.projectId || thread.worktreePath !== null) &&
         project.isScratch !== true &&
         project.archivedAt == null &&
         !isScratchProject(project, scratchWorkspaceRoot),

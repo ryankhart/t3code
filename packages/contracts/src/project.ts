@@ -593,7 +593,7 @@ export const ProjectCreateFromThreadResult = Schema.Struct({
 });
 export type ProjectCreateFromThreadResult = typeof ProjectCreateFromThreadResult.Type;
 
-/** Files a No project thread under an existing project; the thread keeps working in its own folder. */
+/** Files a No project thread under an existing project and makes the project folder its working folder. */
 export const ProjectMoveThreadInput = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
@@ -602,6 +602,10 @@ export type ProjectMoveThreadInput = typeof ProjectMoveThreadInput.Type;
 
 export const ProjectMoveThreadResult = Schema.Struct({
   projectId: ProjectId,
+  /** False when the thread kept its own folder: its provider is not known to resume from another one. */
+  folderSwitched: Schema.optional(Schema.Boolean),
+  /** The folder the thread left, when it still holds files. Nothing in it is moved or deleted. */
+  leftFolder: Schema.optional(Schema.String),
 });
 export type ProjectMoveThreadResult = typeof ProjectMoveThreadResult.Type;
 
