@@ -295,8 +295,9 @@ export interface ThreadMoveTarget {
 }
 
 /**
- * Projects a thread with its own No project folder can be filed under: same environment, real,
- * not archived. Pinned first. "Turn into project" or an earlier move does not take this away.
+ * Projects a thread with its own No project folder can move to: same environment, real, not
+ * archived. Pinned first. A thread filed under a project while it kept its own folder is
+ * offered that project too, so picking it finishes the move.
  */
 export function threadMoveTargets(threadRef: ScopedThreadRef): ReadonlyArray<ThreadMoveTarget> {
   const thread = readThreadShell(threadRef);
@@ -311,7 +312,7 @@ export function threadMoveTargets(threadRef: ScopedThreadRef): ReadonlyArray<Thr
     .filter(
       (project) =>
         project.environmentId === threadRef.environmentId &&
-        project.id !== thread.projectId &&
+        (project.id !== thread.projectId || thread.worktreePath !== null) &&
         project.isScratch !== true &&
         project.archivedAt == null &&
         !isScratchProject(project, config.scratchWorkspaceRoot),

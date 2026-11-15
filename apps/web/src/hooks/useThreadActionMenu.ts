@@ -8,6 +8,7 @@ import {
   settlePromise,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
+import { threadMoveNote } from "@t3tools/client-runtime/state/projects";
 import { canSnooze, effectiveSnoozed } from "@t3tools/client-runtime/state/thread-settled";
 import {
   AuthOrchestrationOperateScope,
@@ -179,7 +180,7 @@ export function useThreadActionMenu(input: {
           toastManager.add({
             type: "success",
             title: "Moved to project",
-            description: thread.title,
+            description: threadMoveNote(result.value) ?? thread.title,
           });
         } else if (!isAtomCommandInterrupted(result)) {
           failureToast("Could not move thread to the project", squashAtomCommandFailure(result));
