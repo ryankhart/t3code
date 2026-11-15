@@ -146,9 +146,23 @@ export function isScratchProject(
   );
 }
 
+/** What "Move to project" has to add once it succeeds, or null when the move was plain. */
+export function threadMoveNote(result: {
+  readonly folderSwitched?: boolean | undefined;
+  readonly leftFolder?: string | undefined;
+}): string | null {
+  if (result.folderSwitched === false) {
+    return "It still works in its own folder: its provider is not known to resume a conversation from another one.";
+  }
+  return result.leftFolder === undefined
+    ? null
+    : `Its old folder still holds files: ${result.leftFolder}`;
+}
+
 /**
  * Whether a thread works in its own folder directly inside the No project folder: a No project
- * thread, or one that "Turn into project" or "Move to project" has since filed elsewhere.
+ * thread, one that "Turn into project" made a project of, or one "Move to project" filed under
+ * a project while it kept that folder.
  */
 export function threadHasScratchFolder(
   thread: { readonly worktreePath: string | null },

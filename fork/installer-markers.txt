@@ -11,3 +11,4 @@ sidebar-row-status-rail
 Get extensions from the Chrome Web Store
 --color-sidebar-tray-edge
 started under No project can move to a project
+Its old folder still holds files

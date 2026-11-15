@@ -129,7 +129,7 @@ export interface ThreadActionMenuState {
   readonly canShareWithGuest?: boolean;
   /** A No project thread with its own folder, on a server that can promote it. */
   readonly canTurnIntoProject?: boolean;
-  /** Projects a No project thread can be filed under (it keeps its own folder). */
+  /** Projects a No project thread can move to (it then works in the project's folder). */
   readonly moveTargets?: ReadonlyArray<{ readonly id: string; readonly title: string }>;
 }
 
