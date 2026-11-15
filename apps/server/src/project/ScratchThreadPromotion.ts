@@ -42,8 +42,9 @@ export class ScratchThreadPromotion extends Context.Service<
       readonly threadId: ThreadId;
     }) => Effect.Effect<{ readonly projectId: ProjectId }, ScratchThreadPromotionError>;
     /**
-     * Files a No project thread under an existing project. The thread keeps its own
-     * folder as its working folder, so its provider session resumes unchanged.
+     * Files a thread that works in its own No project folder under an existing project,
+     * whichever project holds it now. The thread keeps that folder as its working folder,
+     * so its provider session resumes unchanged.
      */
     readonly moveInto: (input: {
       readonly threadId: ThreadId;
@@ -150,9 +151,19 @@ const make = Effect.gen(function* () {
         () => new ScratchThreadPromotionError({ reason: "Thread not found." }),
       ),
     );
-    if (!thread.worktreePath || !(yield* managedFolders.isScratchProject(thread.projectId))) {
+    const current = yield* projects
+      .getById(thread.projectId)
+      .pipe(Effect.mapError(fail("Could not read the thread's project.")));
+    // After "Turn into project" the thread's folder is its project's root, with no worktree path.
+    const folder = thread.worktreePath ?? Option.getOrUndefined(current)?.workspaceRoot;
+    const scratchRoot = Option.getOrUndefined(yield* managedFolders.scratchRoot);
+    if (
+      folder === undefined ||
+      scratchRoot === undefined ||
+      (yield* realPath(path.dirname(folder))) !== (yield* realPath(scratchRoot))
+    ) {
       return yield* new ScratchThreadPromotionError({
-        reason: "Only a No project thread with its own folder can move to a project.",
+        reason: "Only a thread that started under No project can move to a project.",
       });
     }
     if (yield* managedFolders.isScratchProject(input.projectId)) {

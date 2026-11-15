@@ -30,7 +30,7 @@ import { useComposerDraftStore } from "../composerDraftStore";
 import { environmentSession, readEnvironmentScope } from "../state/session";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentServerConfigsAtom } from "../state/server";
-import { isScratchProject } from "@t3tools/client-runtime/state/projects";
+import { isScratchProject, threadHasScratchFolder } from "@t3tools/client-runtime/state/projects";
 import { orchestrationEnvironment } from "../state/orchestration";
 import { projectEnvironment } from "../state/projects";
 import { threadEnvironment } from "../state/threads";
@@ -294,19 +294,27 @@ export interface ThreadMoveTarget {
   readonly title: string;
 }
 
-/** Projects a No project thread can be filed under: same environment, real, not archived. Pinned first. */
+/**
+ * Projects a thread with its own No project folder can be filed under: same environment, real,
+ * not archived. Pinned first. "Turn into project" or an earlier move does not take this away.
+ */
 export function threadMoveTargets(threadRef: ScopedThreadRef): ReadonlyArray<ThreadMoveTarget> {
-  if (!canTurnThreadIntoProject(threadRef)) return [];
   const thread = readThreadShell(threadRef);
   const config = appAtomRegistry.get(environmentServerConfigsAtom).get(threadRef.environmentId);
+  if (!thread || config?.environment.capabilities.threadProjectFromScratch !== true) return [];
+  const threadProject = readProject({
+    environmentId: threadRef.environmentId,
+    projectId: thread.projectId,
+  });
+  if (!threadHasScratchFolder(thread, threadProject, config.scratchWorkspaceRoot)) return [];
   return readProjects()
     .filter(
       (project) =>
         project.environmentId === threadRef.environmentId &&
-        project.id !== thread?.projectId &&
+        project.id !== thread.projectId &&
         project.isScratch !== true &&
         project.archivedAt == null &&
-        !isScratchProject(project, config?.scratchWorkspaceRoot),
+        !isScratchProject(project, config.scratchWorkspaceRoot),
     )
     .toSorted(
       (a, b) =>

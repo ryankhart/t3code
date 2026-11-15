@@ -10,3 +10,4 @@ T3 Code is adding its Chrome extension
 sidebar-row-status-rail
 Get extensions from the Chrome Web Store
 --color-sidebar-tray-edge
+started under No project can move to a project
