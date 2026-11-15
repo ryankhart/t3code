@@ -4,6 +4,7 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { errorDisplayMessage } from "@t3tools/client-runtime/errors";
+import { threadHasScratchFolder } from "@t3tools/client-runtime/state/projects";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -67,9 +68,9 @@ const NO_PROJECTS_ATOM = Atom.make<ReadonlyArray<EnvironmentProject>>([]).pipe(
 
 /**
  * Whether a thread row offers "Turn into project", and the projects its "Move to project"
- * submenu lists. Each row watches only its own project and server config; just the rare
- * No project thread that can move also watches the project list, so the menu stays current
- * without every row re-rendering on any project change.
+ * submenu lists (for any thread with its own No project folder). Each row watches only its own
+ * project and server config; just the rare thread that can move also watches the project list,
+ * so the menu stays current without every row re-rendering on any project change.
  */
 export function useThreadProjectActions(thread: ThreadProjectRef): {
   readonly canTurnIntoProject: boolean;
@@ -79,21 +80,19 @@ export function useThreadProjectActions(thread: ThreadProjectRef): {
   const config = useEnvironmentServerConfig(environmentId) ?? undefined;
   const project = useAtomValue(environmentProjects.projectAtom({ environmentId, projectId }));
   const promotable = canPromoteThread({ environmentId, projectId, worktreePath }, config, project);
-  const projects = useAtomValue(promotable ? environmentProjects.projectsAtom : NO_PROJECTS_ATOM);
   const scratchRoot = config?.scratchWorkspaceRoot;
+  const movable =
+    config?.environment.capabilities.threadProjectFromScratch === true &&
+    threadHasScratchFolder({ worktreePath }, project, scratchRoot);
+  const projects = useAtomValue(movable ? environmentProjects.projectsAtom : NO_PROJECTS_ATOM);
   return useMemo(
-    () =>
-      promotable
-        ? {
-            canTurnIntoProject: true,
-            moveTargets: resolveThreadMoveTargets(
-              { environmentId, projectId },
-              projects,
-              scratchRoot,
-            ),
-          }
-        : { canTurnIntoProject: false, moveTargets: NO_MOVE_TARGETS },
-    [promotable, environmentId, projectId, projects, scratchRoot],
+    () => ({
+      canTurnIntoProject: promotable,
+      moveTargets: movable
+        ? resolveThreadMoveTargets({ environmentId, projectId }, projects, scratchRoot)
+        : NO_MOVE_TARGETS,
+    }),
+    [promotable, movable, environmentId, projectId, projects, scratchRoot],
   );
 }
 

@@ -146,6 +146,25 @@ export function isScratchProject(
   );
 }
 
+/**
+ * Whether a thread works in its own folder directly inside the No project folder: a No project
+ * thread, or one that "Turn into project" or "Move to project" has since filed elsewhere.
+ */
+export function threadHasScratchFolder(
+  thread: { readonly worktreePath: string | null },
+  project: { readonly workspaceRoot: string } | null | undefined,
+  scratchWorkspaceRoot: string | null | undefined,
+): boolean {
+  const folder = thread.worktreePath ?? project?.workspaceRoot;
+  if (!folder || scratchWorkspaceRoot == null) return false;
+  const parent = getBrowseParentPath(folder);
+  return (
+    parent !== null &&
+    normalizeProjectPathForComparison(parent) ===
+      normalizeProjectPathForComparison(scratchWorkspaceRoot)
+  );
+}
+
 export function inferProjectTitleFromPath(value: string): string {
   const normalized = normalizeProjectPathForDispatch(value);
   const absolutePath = splitAbsolutePath(normalized);
