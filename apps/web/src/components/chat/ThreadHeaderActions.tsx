@@ -1,9 +1,8 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import type { ThreadActionMenuId } from "@t3tools/client-runtime/thread-action-menu";
 import {
-  canSnooze,
   effectiveSnoozed,
   QUEUED_TURN_START_GRACE_MS,
+  snoozeBlocker,
 } from "@t3tools/client-runtime/state/thread-settled";
 import {
   AlarmClockOffIcon,
@@ -16,12 +15,13 @@ import {
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import { useNowAfter } from "~/hooks/useDeadline";
+import type { ThreadQuickAction } from "~/hooks/useThreadActionMenu";
 import { useThreadShell } from "../../state/entities";
+import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 type MenuPosition = { x: number; y: number };
-type ThreadShell = NonNullable<ReturnType<typeof useThreadShell>>;
 
 function menuPositionBelow(event: ReactMouseEvent<HTMLElement>): MenuPosition {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -32,26 +32,18 @@ function withShortcut(label: string, shortcut: string | null) {
   return shortcut ? `${label} (${shortcut})` : label;
 }
 
-/** Why `canSnooze` said no, in the order it checks. */
-function snoozeBlockedReason(thread: ThreadShell): string {
-  const request = thread.source?.pendingRuntimeRequest;
-  if (
-    thread.hasPendingApprovals ||
-    (request != null && request.kind !== "user_input") ||
-    thread.pendingSubagentRequest != null
-  ) {
-    return "Can't snooze while the thread is waiting on you";
-  }
-  if ((thread.pendingGuestMessageCount ?? 0) > 0) {
-    return "Can't snooze while a guest message is waiting";
-  }
-  return "Can't snooze while the thread is starting a turn";
-}
+const SNOOZE_BLOCKED_LABEL = {
+  "waiting-on-you": "Can't snooze while the thread is waiting on you",
+  "guest-message": "Can't snooze while a guest message is waiting",
+  "starting-turn": "Can't snooze while the thread is starting a turn",
+} as const;
 
 function HeaderActionButton(props: {
   readonly label: string;
   readonly tooltip?: string;
   readonly icon: LucideIcon;
+  /** How the icon fills in when pressed, so on reads differently from hover. */
+  readonly pressedIconClassName?: string;
   readonly pressed?: boolean;
   readonly disabled?: boolean;
   readonly opensMenu?: boolean;
@@ -76,11 +68,16 @@ function HeaderActionButton(props: {
           />
         }
       >
-        <Icon className="size-4" />
+        <Icon className={cn("size-4", props.pressed && props.pressedIconClassName)} />
       </TooltipTrigger>
       <TooltipPopup side="bottom">{props.tooltip ?? props.label}</TooltipPopup>
     </Tooltip>
   );
+}
+
+/** Sets the thread's own buttons apart from the panel toggles beside them. */
+function HeaderGroupDivider() {
+  return <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />;
 }
 
 /**
@@ -95,11 +92,11 @@ export function ThreadHeaderActions(props: {
   readonly pinShortcut: string | null;
   readonly onOpenMenu: (position: MenuPosition) => void;
   readonly onOpenSnoozeMenu: (position: MenuPosition) => void;
-  readonly onRunAction: (action: ThreadActionMenuId) => Promise<void>;
+  readonly onRunAction: (action: ThreadQuickAction) => Promise<void>;
 }) {
   const thread = useThreadShell(props.threadRef);
   // A quick second click on one button would read the old state and undo the first.
-  const [running, setRunning] = useState<ReadonlySet<ThreadActionMenuId>>(new Set());
+  const [running, setRunning] = useState<ReadonlySet<ThreadQuickAction>>(new Set());
   // Snoozing and its gate both change with time, so re-read the clock when each one flips.
   const snoozeEndsAt = Date.parse(thread?.snoozedUntil ?? "");
   const queuedTurnGateEndsAt = Date.parse(thread?.latestUserMessageAt ?? "");
@@ -111,7 +108,7 @@ export function ThreadHeaderActions(props: {
         : null,
     ),
   );
-  const run = (button: ThreadActionMenuId, action: ThreadActionMenuId) => {
+  const run = (button: ThreadQuickAction, action: ThreadQuickAction) => {
     if (running.has(button)) return;
     setRunning((current) => new Set(current).add(button));
     void props.onRunAction(action).finally(() =>
@@ -127,7 +124,7 @@ export function ThreadHeaderActions(props: {
   const isSettled = thread?.settledOverride === "settled";
   const isPinned = thread?.pinnedAt != null;
   const isSnoozed = thread !== null && effectiveSnoozed(thread, { now });
-  const snoozable = thread !== null && canSnooze(thread, { now });
+  const blocker = thread === null ? null : snoozeBlocker(thread, { now });
   return (
     <div className="flex shrink-0 items-center gap-0.5" data-thread-header-actions>
       {showsQuickActions ? (
@@ -140,6 +137,8 @@ export function ThreadHeaderActions(props: {
               props.settleShortcut,
             )}
             icon={CircleCheckIcon}
+            // A solid disc with the check cut out, like the phone's filled checkmark.
+            pressedIconClassName="[&_circle]:fill-current [&_path]:stroke-background"
             pressed={isSettled}
             onClick={() => run("settle", isSettled ? "unsettle" : "settle")}
           />
@@ -153,10 +152,10 @@ export function ThreadHeaderActions(props: {
           ) : (
             <HeaderActionButton
               label="Snooze"
-              tooltip={snoozable || thread === null ? "Snooze" : snoozeBlockedReason(thread)}
+              tooltip={blocker === null ? "Snooze" : SNOOZE_BLOCKED_LABEL[blocker]}
               icon={ClockIcon}
               opensMenu
-              disabled={!snoozable}
+              disabled={blocker !== null}
               onClick={(event) => props.onOpenSnoozeMenu(menuPositionBelow(event))}
             />
           )}
@@ -164,6 +163,7 @@ export function ThreadHeaderActions(props: {
             label={isPinned ? "Unpin thread" : "Pin thread"}
             tooltip={withShortcut(isPinned ? "Unpin thread" : "Pin thread", props.pinShortcut)}
             icon={PinIcon}
+            pressedIconClassName="fill-current"
             pressed={isPinned}
             onClick={() => run("pin", isPinned ? "unpin" : "pin")}
           />
@@ -175,6 +175,7 @@ export function ThreadHeaderActions(props: {
         opensMenu
         onClick={(event) => props.onOpenMenu(menuPositionBelow(event))}
       />
+      <HeaderGroupDivider />
     </div>
   );
 }
@@ -191,6 +192,7 @@ export function DraftHeaderActions(props: {
         opensMenu
         onClick={(event) => props.onOpenMenu(menuPositionBelow(event))}
       />
+      <HeaderGroupDivider />
     </div>
   );
 }

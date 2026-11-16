@@ -1,9 +1,9 @@
 import type { MenuAction } from "@react-native-menu/menu";
+import type { ThreadActionMenuId } from "@t3tools/client-runtime/thread-action-menu";
 import type { ContextMenuItem } from "@t3tools/contracts";
 
-// SF Symbol names; AppSymbol maps each to its Android icon.
+// SF Symbol names; AppSymbol maps each to its Android icon. Only actions the phone offers.
 const SYMBOL_BY_ACTION_ID: Readonly<Record<string, string>> = {
-  find: "magnifyingglass",
   "new-thread-on-branch": "square.and.pencil",
   pin: "pin",
   unpin: "pin.slash",
@@ -17,8 +17,6 @@ const SYMBOL_BY_ACTION_ID: Readonly<Record<string, string>> = {
   rename: "pencil",
   "regenerate-title": "arrow.clockwise",
   "mark-unread": "circle.fill",
-  "share-guest": "person.badge.plus",
-  "filter-by-project": "line.3.horizontal.decrease",
   "turn-into-project": "folder.badge.plus",
   "move-to-project": "folder.fill",
   "auto-settle": "timer",
@@ -27,11 +25,9 @@ const SYMBOL_BY_ACTION_ID: Readonly<Record<string, string>> = {
   "copy-branch": "arrow.triangle.branch",
   "copy-thread": "text.bubble",
   "copy-thread-id": "doc.on.doc",
-  "project-settings": "gearshape",
   archive: "archivebox",
   delete: "trash",
-  discard: "trash",
-};
+} satisfies Partial<Record<ThreadActionMenuId, string>>;
 
 function menuAction(item: ContextMenuItem<string>): MenuAction {
   const image = SYMBOL_BY_ACTION_ID[item.id];

@@ -1021,23 +1021,22 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         moveTargets,
         ...(props.reorderSupported === true
           ? {
-              arrange: {
-                canMoveUp: props.canMoveUp === true,
-                canMoveDown: props.canMoveDown === true,
-              },
+              // Settled rows are ordered by when they settled, so only the arrange sheet applies.
+              arrange: canUnsettle
+                ? {}
+                : {
+                    moves: {
+                      canMoveUp: props.canMoveUp === true,
+                      canMoveDown: props.canMoveDown === true,
+                    },
+                  },
             }
           : {}),
         canOpenProjectSettings: false,
       },
       m,
     );
-    return menuActionsFromThreadMenu(
-      // Settled rows are ordered by when they settled, so only the arrange sheet applies.
-      canUnsettle
-        ? items.filter((item) => item.id !== "move-up" && item.id !== "move-down")
-        : items,
-      { nestAfterFirstGroup: Platform.OS === "ios" },
-    );
+    return menuActionsFromThreadMenu(items, { nestAfterFirstGroup: Platform.OS === "ios" });
   }, [
     canOperateThread,
     canShareWithGuest,

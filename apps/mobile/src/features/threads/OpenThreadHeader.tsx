@@ -110,13 +110,12 @@ export function OpenThreadHeader(
     snoozePresets,
     canTurnIntoProject,
     moveTargets,
-    ...(canArrange ? { arrange: { canMoveUp: false, canMoveDown: false } } : {}),
+    // Just the arrange sheet: one-step moves need the list around the thread.
+    ...(canArrange ? { arrange: {} } : {}),
     canOpenProjectSettings: false,
     },
     m,
   );
-  // Moving one step only makes sense beside its neighbours in the list; the sheet works anywhere.
-  const shownItems = items.filter((item) => item.id !== "move-up" && item.id !== "move-down");
 
   const handleSelect = (event: string) => {
     if (runMenuUtility(event, thread, projectCwd)) return;
@@ -202,7 +201,7 @@ export function OpenThreadHeader(
   };
 
   const threadMenuItems = appBarMenuItemsFromActions(
-    menuActionsFromThreadMenu(shownItems, { nestAfterFirstGroup: Platform.OS === "ios" }),
+    menuActionsFromThreadMenu(items, { nestAfterFirstGroup: Platform.OS === "ios" }),
     handleSelect,
   );
   return (

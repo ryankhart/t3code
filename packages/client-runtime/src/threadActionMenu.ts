@@ -133,8 +133,13 @@ export interface ThreadActionMenuState {
   readonly canTurnIntoProject?: boolean;
   /** Projects a No project thread can move to (it then works in the project's folder). */
   readonly moveTargets?: ReadonlyArray<{ readonly id: string; readonly title: string }>;
-  /** Hand-ordering inside a thread list (phone); absent where the list can't be arranged. */
-  readonly arrange?: { readonly canMoveUp: boolean; readonly canMoveDown: boolean };
+  /**
+   * Hand-ordering a thread list (phone); absent where it can't be arranged. `moves` adds one-step
+   * Move up/down, which only make sense beside the thread's neighbours in that list.
+   */
+  readonly arrange?: {
+    readonly moves?: { readonly canMoveUp: boolean; readonly canMoveDown: boolean };
+  };
   readonly canOpenProjectSettings: boolean;
 }
 
@@ -236,18 +241,22 @@ export function buildThreadActionMenuItems(
             // Keeps iOS's short top level, which nests everything after the first group.
             separatorBefore: true,
           },
-          {
-            id: "move-up" as const,
-            label: "Move up",
-            icon: "arrow-up",
-            disabled: !state.arrange.canMoveUp,
-          },
-          {
-            id: "move-down" as const,
-            label: "Move down",
-            icon: "arrow-down",
-            disabled: !state.arrange.canMoveDown,
-          },
+          ...(state.arrange.moves
+            ? [
+                {
+                  id: "move-up" as const,
+                  label: "Move up",
+                  icon: "arrow-up",
+                  disabled: !state.arrange.moves.canMoveUp,
+                },
+                {
+                  id: "move-down" as const,
+                  label: "Move down",
+                  icon: "arrow-down",
+                  disabled: !state.arrange.moves.canMoveDown,
+                },
+              ]
+            : []),
         ]
       : []),
     {

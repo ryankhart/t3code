@@ -123,8 +123,18 @@ describe("buildThreadActionMenuItems", () => {
     const ids = (state: ThreadActionMenuState) =>
       buildThreadActionMenuItems(state).map((item) => item.id);
     expect(
-      ids({ ...baseState, arrange: { canMoveUp: true, canMoveDown: false } }).slice(0, 6),
+      ids({ ...baseState, arrange: { moves: { canMoveUp: true, canMoveDown: false } } }).slice(
+        0,
+        6,
+      ),
     ).toEqual(["pin", "settle", "snooze", "arrange", "move-up", "move-down"]);
+    expect(ids({ ...baseState, arrange: {} }).slice(0, 5)).toEqual([
+      "pin",
+      "settle",
+      "snooze",
+      "arrange",
+      "rename",
+    ]);
     expect(ids(baseState)).toContain("project-settings");
     expect(ids({ ...baseState, canOpenProjectSettings: false })).not.toContain("project-settings");
   });

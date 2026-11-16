@@ -129,30 +129,37 @@ function failureEdgeAt(shell: ThreadSnoozeShell): string | null | undefined {
   return runtime.updatedAt ?? null;
 }
 
-export function canSnooze(
-  shell: Pick<
-    ThreadSnoozeShell,
-    | "hasPendingApprovals"
-    | "hasPendingUserInput"
-    | "pendingSubagentRequest"
-    | "pendingGuestMessageCount"
-    | "latestUserMessageAt"
-    | "latestTurn"
-    | "latestRun"
-    | "session"
-    | "runtime"
-    | "source"
-  >,
+type SnoozeGateShell = Pick<
+  ThreadSnoozeShell,
+  | "hasPendingApprovals"
+  | "hasPendingUserInput"
+  | "pendingSubagentRequest"
+  | "pendingGuestMessageCount"
+  | "latestUserMessageAt"
+  | "latestTurn"
+  | "latestRun"
+  | "session"
+  | "runtime"
+  | "source"
+>;
+
+/** Why a thread can't be snoozed right now, or null when it can. */
+export function snoozeBlocker(
+  shell: SnoozeGateShell,
   options: { readonly now: string },
-): boolean {
-  if (shell.hasPendingApprovals) return false;
+): "waiting-on-you" | "guest-message" | "starting-turn" | null {
+  if (shell.hasPendingApprovals) return "waiting-on-you";
   const request = shell.source?.pendingRuntimeRequest;
-  if (request != null && request.kind !== "user_input") return false;
-  if (shell.pendingSubagentRequest != null) return false;
+  if (request != null && request.kind !== "user_input") return "waiting-on-you";
+  if (shell.pendingSubagentRequest != null) return "waiting-on-you";
   // A waiting guest message would wake it at once.
-  if ((shell.pendingGuestMessageCount ?? 0) > 0) return false;
-  if (hasQueuedTurnStart(shell, options)) return false;
-  return true;
+  if ((shell.pendingGuestMessageCount ?? 0) > 0) return "guest-message";
+  if (hasQueuedTurnStart(shell, options)) return "starting-turn";
+  return null;
+}
+
+export function canSnooze(shell: SnoozeGateShell, options: { readonly now: string }): boolean {
+  return snoozeBlocker(shell, options) === null;
 }
 
 export function effectiveSnoozed(
