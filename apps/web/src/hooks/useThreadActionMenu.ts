@@ -57,6 +57,7 @@ import {
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
 import { settleAndAdvance } from "../settleAndAdvance";
+import { readSidebarProjectFilter } from "../sidebarProjectFilter";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
@@ -153,7 +154,7 @@ export function useThreadActionMenu(input: {
       canFind: onFind !== undefined,
       canRename: onStartRename !== undefined,
       branch: thread.branch ?? null,
-      projectFilter: null,
+      projectFilter: readSidebarProjectFilter()?.describe(thread) ?? null,
       isPinned: thread.pinnedAt != null,
       isSettled: supports.settlement && thread.settledOverride === "settled",
       autoSettleEnabled: thread.autoSettleDisabledAt == null,
@@ -240,6 +241,9 @@ export function useThreadActionMenu(input: {
     switch (action) {
       case "find":
         onFind?.(threadRef);
+        return;
+      case "filter-by-project":
+        readSidebarProjectFilter()?.toggle(thread);
         return;
       case "project-settings": {
         const project = findThreadProject(thread);

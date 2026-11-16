@@ -147,6 +147,7 @@ vi.mock("./useThreadActions", () => ({
     ),
 }));
 
+import { registerSidebarProjectFilter } from "../sidebarProjectFilter";
 import { useThreadActionMenu } from "./useThreadActionMenu";
 
 const target = {
@@ -226,6 +227,28 @@ describe("thread header buttons", () => {
       "snooze:custom",
     ]);
     expect(state.effects).toEqual(["snoozeThread"]);
+  });
+
+  it("offers the mounted sidebar's project filter and toggles it", async () => {
+    state.granted.add("secondary");
+    createMenu().openMenu(position);
+    expect(state.show.mock.calls[0]![0].some((item) => item.id === "filter-by-project")).toBe(
+      false,
+    );
+    const unregister = registerSidebarProjectFilter({
+      describe: () => ({ label: "Web", isActive: false }),
+      toggle: () => recordEffect("toggleProjectFilter"),
+    });
+    try {
+      state.show.mockResolvedValue("filter-by-project");
+      createMenu().openMenu(position);
+      await state.completed.promise;
+      const items = state.show.mock.calls[1]![0];
+      expect(items.find((item) => item.id === "filter-by-project")?.label).toBe("Filter by Web");
+      expect(state.effects).toEqual(["toggleProjectFilter"]);
+    } finally {
+      unregister();
+    }
   });
 
   it("rechecks permission for a one-click action", async () => {
