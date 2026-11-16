@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildThreadActionMenuItems, type ThreadActionMenuState } from "./threadActionMenu.logic";
+import { buildThreadActionMenuItems, type ThreadActionMenuState } from "./threadActionMenu.ts";
 
 const baseState: ThreadActionMenuState = {
   canOperate: true,
@@ -14,6 +14,7 @@ const baseState: ThreadActionMenuState = {
   isRegeneratingTitle: false,
   isRunning: false,
   hasCompletedRun: true,
+  canOpenProjectSettings: true,
   supports: {
     settlement: true,
     autoSettleOptOut: true,
@@ -116,5 +117,15 @@ describe("buildThreadActionMenuItems", () => {
         moveTargets: [{ id: "p1", title: "Web Tweaks" }],
       }).find((item) => item.id === "move-to-project")?.disabled,
     ).toBe(true);
+  });
+
+  it("orders list arranging after snooze and leaves out what a place can't do", () => {
+    const ids = (state: ThreadActionMenuState) =>
+      buildThreadActionMenuItems(state).map((item) => item.id);
+    expect(
+      ids({ ...baseState, arrange: { canMoveUp: true, canMoveDown: false } }).slice(0, 6),
+    ).toEqual(["pin", "settle", "snooze", "arrange", "move-up", "move-down"]);
+    expect(ids(baseState)).toContain("project-settings");
+    expect(ids({ ...baseState, canOpenProjectSettings: false })).not.toContain("project-settings");
   });
 });

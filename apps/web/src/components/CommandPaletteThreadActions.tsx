@@ -26,7 +26,7 @@ import {
   type CommandPaletteActionItem,
   type CommandPaletteSubmenuItem,
 } from "./CommandPalette.logic";
-import type { ThreadActionMenuId } from "./threadActionMenu.logic";
+import type { ThreadActionMenuId } from "@t3tools/client-runtime/thread-action-menu";
 
 const ICONS: Record<string, LucideIcon> = {
   archive: ArchiveIcon,

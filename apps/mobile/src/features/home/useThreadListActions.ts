@@ -228,6 +228,7 @@ function useThreadActionExecutor(
 function confirmThreadDeletion(
   executeAction: (action: ThreadListAction, thread: EnvironmentThreadShell) => Promise<boolean>,
   thread: EnvironmentThreadShell,
+  onDeleted?: () => void,
 ) {
   if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
   const title = m(msg("Delete thread?"));
@@ -242,7 +243,9 @@ function confirmThreadDeletion(
     confirmText: m(msg("Delete", { $context: "verb, confirms deleting a thread" })),
     destructive: true,
     onConfirm: () => {
-      void executeAction("delete", thread);
+      void executeAction("delete", thread).then((deleted) => {
+        if (deleted) onDeleted?.();
+      });
     },
   });
 }
@@ -256,7 +259,7 @@ export type SettleThreadOptions = {
 
 export function useThreadListActions(): {
   readonly archiveThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
-  readonly confirmDeleteThread: (thread: EnvironmentThreadShell) => void;
+  readonly confirmDeleteThread: (thread: EnvironmentThreadShell, onDeleted?: () => void) => void;
   readonly settleThread: (
     thread: EnvironmentThreadShell,
     options?: SettleThreadOptions,
@@ -856,8 +859,8 @@ export function useThreadListActions(): {
     return moved;
   };
 
-  const confirmDeleteThread = (thread: EnvironmentThreadShell) =>
-    confirmThreadDeletion(executeAction, thread);
+  const confirmDeleteThread = (thread: EnvironmentThreadShell, onDeleted?: () => void) =>
+    confirmThreadDeletion(executeAction, thread, onDeleted);
 
   // Stable, so a list that re-renders does not re-render every row these reach.
   // `moveThread` looks up its own row, and refuses while a list holds older rows.
@@ -865,8 +868,9 @@ export function useThreadListActions(): {
     archiveThread: useStableCallback((thread: EnvironmentThreadShell) =>
       archiveThread(liveThread(thread)),
     ),
-    confirmDeleteThread: useStableCallback((thread: EnvironmentThreadShell) =>
-      confirmDeleteThread(liveThread(thread)),
+    confirmDeleteThread: useStableCallback(
+      (thread: EnvironmentThreadShell, onDeleted?: () => void) =>
+        confirmDeleteThread(liveThread(thread), onDeleted),
     ),
     settleThread: useStableCallback((thread: EnvironmentThreadShell) =>
       settleThread(liveThread(thread)),
