@@ -210,6 +210,7 @@ function useThreadActionExecutor(
 function confirmThreadDeletion(
   executeAction: (action: ThreadListAction, thread: EnvironmentThreadShell) => Promise<boolean>,
   thread: EnvironmentThreadShell,
+  onDeleted?: () => void,
 ) {
   if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
   const title = m(msg("Delete thread?"));
@@ -224,7 +225,9 @@ function confirmThreadDeletion(
     confirmText: m(msg("Delete", { $context: "verb, confirms deleting a thread" })),
     destructive: true,
     onConfirm: () => {
-      void executeAction("delete", thread);
+      void executeAction("delete", thread).then((deleted) => {
+        if (deleted) onDeleted?.();
+      });
     },
   });
 }
@@ -238,7 +241,7 @@ export type SettleThreadOptions = {
 
 export function useThreadListActions(): {
   readonly archiveThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
-  readonly confirmDeleteThread: (thread: EnvironmentThreadShell) => void;
+  readonly confirmDeleteThread: (thread: EnvironmentThreadShell, onDeleted?: () => void) => void;
   readonly settleThread: (
     thread: EnvironmentThreadShell,
     options?: SettleThreadOptions,
@@ -828,13 +831,13 @@ export function useThreadListActions(): {
     return moved;
   };
 
-  const confirmDeleteThread = (thread: EnvironmentThreadShell) =>
-    confirmThreadDeletion(executeAction, thread);
+  const confirmDeleteThread = (thread: EnvironmentThreadShell, onDeleted?: () => void) =>
+    confirmThreadDeletion(executeAction, thread, onDeleted);
 
   // `moveThread` looks up its own row, and refuses while a list holds older rows.
   return {
     archiveThread: (thread) => archiveThread(liveThread(thread)),
-    confirmDeleteThread: (thread) => confirmDeleteThread(liveThread(thread)),
+    confirmDeleteThread: (thread, onDeleted) => confirmDeleteThread(liveThread(thread), onDeleted),
     settleThread: (thread) => settleThread(liveThread(thread)),
     snoozeThread: (thread, snoozedUntil) => snoozeThread(liveThread(thread), snoozedUntil),
     unsnoozeThread: (thread) => unsnoozeThread(liveThread(thread)),

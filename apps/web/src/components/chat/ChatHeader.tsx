@@ -25,8 +25,8 @@ import { Badge } from "../ui/badge";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
+import { useDraftActionMenu } from "~/hooks/useDraftActionMenu";
 import { useThreadActionMenu } from "~/hooks/useThreadActionMenu";
-import { readLocalApi } from "~/localApi";
 import { threadEnvironment } from "../../state/threads";
 import { canShareWithGuestAtom } from "./guestShareAvailability";
 import { useAtomValue } from "@effect/atom-react";
@@ -53,6 +53,7 @@ import { ComputerViewDialog } from "../computers/ComputerViewDialog";
 import { Button } from "../ui/button";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { GuestShareIndicator } from "./GuestShareControls";
+import { DraftHeaderActions, ThreadHeaderActions } from "./ThreadHeaderActions";
 
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
@@ -242,12 +243,17 @@ export const ChatHeader = memo(function ChatHeader({
       }
     });
   };
-  const { openMenu, closeMenu } = useThreadActionMenu({
+  const { openMenu, openSnoozeMenu, runAction, closeMenu } = useThreadActionMenu({
     threadRef: isServerThread ? activeThreadRef : null,
     projectCwd: activeProjectCwd,
     onStartRename: startRename,
     onFind: onFindInThread,
     canShareWithGuest,
+  });
+  const { openMenu: openDraftMenu } = useDraftActionMenu({
+    draftId: isServerThread ? null : (draftId ?? null),
+    projectCwd: activeProjectCwd,
+    onOpenProjectSettings,
   });
   const openMenuFromTitle = (event: ReactMouseEvent<HTMLButtonElement>) => {
     if (isTrailingDoubleClick(event.detail)) return;
@@ -263,22 +269,11 @@ export const ChatHeader = memo(function ChatHeader({
   };
   const handleHeaderContextMenu = (event: ReactMouseEvent) => {
     if (renamingTitle !== null) return;
-    if (!isServerThread && onOpenProjectSettings === undefined) return;
+    if (!isServerThread && draftId === undefined) return;
     event.preventDefault();
-    if (!isServerThread) {
-      const api = readLocalApi();
-      if (!api) return;
-      void api.contextMenu
-        .show([{ id: "project-settings", label: gt("Project settings"), icon: "settings" }], {
-          x: event.clientX,
-          y: event.clientY,
-        })
-        .then((action) => {
-          if (action === "project-settings") onOpenProjectSettings?.();
-        });
-      return;
-    }
-    openMenu({ x: event.clientX, y: event.clientY });
+    const position = { x: event.clientX, y: event.clientY };
+    if (isServerThread) openMenu(position);
+    else openDraftMenu(position);
   };
   const handleRenameKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -482,6 +477,18 @@ export const ChatHeader = memo(function ChatHeader({
           </WorkspaceBreadcrumbItem>
         </WorkspaceBreadcrumb>
       )}
+      {isServerThread ? (
+        <ThreadHeaderActions
+          threadRef={activeThreadRef}
+          canOperate={canOperateThread}
+          configLoaded={threadEnvironmentPresentation?.serverConfig != null}
+          onOpenMenu={openMenu}
+          onOpenSnoozeMenu={openSnoozeMenu}
+          onRunAction={(action) => void runAction(action)}
+        />
+      ) : draftId !== undefined ? (
+        <DraftHeaderActions onOpenMenu={openDraftMenu} />
+      ) : null}
       {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
       {supportsComputerView && (
         <Tooltip>

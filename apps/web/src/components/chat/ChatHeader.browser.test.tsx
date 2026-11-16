@@ -18,7 +18,12 @@ vi.mock(import("../../state/use-orchestration-command"), async (importOriginal) 
     }) as never,
 }));
 vi.mock(import("~/hooks/useThreadActionMenu"), () => ({
-  useThreadActionMenu: () => ({ openMenu, closeMenu: () => {} }),
+  useThreadActionMenu: () => ({
+    openMenu,
+    openSnoozeMenu: () => {},
+    runAction: async () => {},
+    closeMenu: () => {},
+  }),
 }));
 
 import { render, stubGlobal } from "../../../test/render";

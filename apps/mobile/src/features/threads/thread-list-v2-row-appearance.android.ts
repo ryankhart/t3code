@@ -26,10 +26,6 @@ export const selectedThreadRowColors = {
   mutedIconTintClassName: "accent-thread-selected-foreground-muted",
 };
 
-export function getThreadListV2NewBranchMenuTitle(branch: string, resolve: MessageResolver = m) {
-  return resolve(msg("New thread on {branch}", { branch }));
-}
-
 export function getThreadListV2RowAppearance(
   theme: MobileThemeVariables,
   sidebarPane: boolean,
