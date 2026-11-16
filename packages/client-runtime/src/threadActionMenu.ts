@@ -1,5 +1,5 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
-import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
+import type { SnoozePreset } from "./state/threadSettled.ts";
 
 export type ThreadActionMenuId =
   | "find"
@@ -19,6 +19,9 @@ export type ThreadActionMenuId =
   | "snooze"
   | `snooze:${string}`
   | "unsnooze"
+  | "arrange"
+  | "move-up"
+  | "move-down"
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -99,6 +102,9 @@ export interface ThreadActionMenuState {
   readonly canTurnIntoProject?: boolean;
   /** Projects a No project thread can move to (it then works in the project's folder). */
   readonly moveTargets?: ReadonlyArray<{ readonly id: string; readonly title: string }>;
+  /** Hand-ordering inside a thread list (phone); absent where the list can't be arranged. */
+  readonly arrange?: { readonly canMoveUp: boolean; readonly canMoveDown: boolean };
+  readonly canOpenProjectSettings: boolean;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -117,6 +123,10 @@ export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean
   ].includes(action);
 }
 
+/**
+ * The one order and wording for a thread's actions in the desktop sidebar and thread header and the
+ * phone's thread list and thread header; each place only leaves out what it can't do.
+ */
 export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
@@ -169,6 +179,23 @@ export function buildThreadActionMenuItems(
                   },
                 ],
               },
+        ]
+      : []),
+    ...(state.arrange
+      ? [
+          { id: "arrange" as const, label: "Arrange threads…", icon: "arrow-up-down" },
+          {
+            id: "move-up" as const,
+            label: "Move up",
+            icon: "arrow-up",
+            disabled: !state.arrange.canMoveUp,
+          },
+          {
+            id: "move-down" as const,
+            label: "Move down",
+            icon: "arrow-down",
+            disabled: !state.arrange.canMoveDown,
+          },
         ]
       : []),
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
@@ -256,7 +283,9 @@ export function buildThreadActionMenuItems(
         { id: "copy-thread-id", label: "Thread ID", icon: "hash" },
       ],
     },
-    { id: "project-settings", label: "Project settings", icon: "settings" },
+    ...(state.canOpenProjectSettings
+      ? [{ id: "project-settings" as const, label: "Project settings", icon: "settings" }]
+      : []),
     {
       id: "archive",
       label: "Archive thread",

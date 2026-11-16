@@ -113,7 +113,7 @@ import {
   threadRouteIsHydrating,
   threadRouteOpensDraft,
 } from "./thread-route-hydration";
-import { ThreadHeader } from "./ThreadHeader";
+import { OpenThreadHeader } from "./OpenThreadHeader";
 import { resumeThread } from "./resume-thread";
 import {
   useAndroidWorkspaceBack,
@@ -1007,7 +1007,11 @@ function ThreadRouteContent(
         <ThreadScreenBinding
           header={
             props.inspectorPresentation ? null : (
-              <ThreadHeader
+              <OpenThreadHeader
+                thread={selectedThread}
+                projectCwd={selectedThreadProject?.workspaceRoot || null}
+                actions={threadListActions}
+                onLeaveThread={returnToThreadList}
                 title={selectedThread.title}
                 subtitle={headerSubtitle}
                 gitControls={threadGitControlProps}
