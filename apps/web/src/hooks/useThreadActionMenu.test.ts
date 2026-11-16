@@ -7,7 +7,7 @@ import {
 import { AsyncResult } from "effect/reactivity";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import type { ThreadActionMenuId } from "../components/threadActionMenu.logic";
+import type { ThreadActionMenuId } from "@t3tools/client-runtime/thread-action-menu";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -104,6 +104,8 @@ vi.mock("../components/Sidebar.snooze", () => ({
   resolveSnoozePresets: () => [
     { id: "hour", label: "In 1 hour", whenLabel: "3 PM", snoozedUntil: "2099-01-01T00:00:00Z" },
   ],
+  pickSnoozePreset: (shown: ReadonlyArray<{ id: string }>, id: string) =>
+    shown.find((preset) => preset.id === id),
   snoozeWakeDescription: () => "later",
 }));
 vi.mock("./useCopyToClipboard", () => ({
@@ -122,6 +124,7 @@ vi.mock("./useSettings", () => ({
 }));
 vi.mock("./useThreadActions", () => ({
   canTurnThreadIntoProject: () => false,
+  threadMoveTargets: () => [],
   useThreadActions: () =>
     Object.fromEntries(
       [
@@ -209,5 +212,28 @@ describe("thread menu mark unread", () => {
     createMenu().openMenu(position);
     const items = state.show.mock.calls[0]![0];
     expect(items.some((item) => item.id === "mark-unread")).toBe(offered);
+  });
+});
+
+describe("thread header buttons", () => {
+  it("opens just the snooze choices and snoozes with the picked one", async () => {
+    state.granted.add("secondary");
+    state.show.mockResolvedValue("snooze:hour");
+    createMenu().openSnoozeMenu(position);
+    await state.completed.promise;
+    expect(state.show.mock.calls[0]![0].map((item) => item.id)).toEqual([
+      "snooze:hour",
+      "snooze:custom",
+    ]);
+    expect(state.effects).toEqual(["snoozeThread"]);
+  });
+
+  it("rechecks permission for a one-click action", async () => {
+    const menu = createMenu();
+    await menu.runAction("pin");
+    expect(state.effects).toEqual([]);
+    state.granted.add("secondary");
+    await menu.runAction("pin");
+    expect(state.effects).toEqual(["pinThread"]);
   });
 });

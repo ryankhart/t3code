@@ -185,7 +185,7 @@ import {
   canMarkLatestRunUnread,
   isThreadTriageAction,
   threadActionRequiresOperate,
-} from "./threadActionMenu.logic";
+} from "@t3tools/client-runtime/thread-action-menu";
 import {
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
@@ -2792,6 +2792,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               canTurnIntoProject: canTurnThreadIntoProject(threadRef),
               canRename: !fromSearch,
               moveTargets: threadMoveTargets(threadRef),
+              canOpenProjectSettings: threadProjectGroup !== null,
               supports: {
                 settlement: configLoaded,
                 autoSettleOptOut: supportsAutoSettleOptOut,

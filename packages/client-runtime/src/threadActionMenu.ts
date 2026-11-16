@@ -1,8 +1,7 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
-import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
-import { msg } from "gt-react";
-
-import { m, type MessageResolver } from "../i18n/messages";
+import type { SnoozePreset } from "./state/threadSettled.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type ThreadActionMenuId =
   | "find"
@@ -22,6 +21,9 @@ export type ThreadActionMenuId =
   | "snooze"
   | `snooze:${string}`
   | "unsnooze"
+  | "arrange"
+  | "move-up"
+  | "move-down"
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -47,7 +49,7 @@ export function buildDraftActionMenuItems(
     readonly hasBranch: boolean;
     readonly hasProject: boolean;
   },
-  resolve: MessageResolver = m,
+  resolve: MFunctionType = mFallback,
 ): ReadonlyArray<ContextMenuItem<DraftActionMenuId>> {
   return [
     {
@@ -131,6 +133,9 @@ export interface ThreadActionMenuState {
   readonly canTurnIntoProject?: boolean;
   /** Projects a No project thread can move to (it then works in the project's folder). */
   readonly moveTargets?: ReadonlyArray<{ readonly id: string; readonly title: string }>;
+  /** Hand-ordering inside a thread list (phone); absent where the list can't be arranged. */
+  readonly arrange?: { readonly canMoveUp: boolean; readonly canMoveDown: boolean };
+  readonly canOpenProjectSettings: boolean;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -169,9 +174,13 @@ export function isThreadTriageAction(action: string): boolean {
   );
 }
 
+/**
+ * The one order and wording for a thread's actions in the desktop sidebar and thread header and the
+ * phone's thread list and thread header; each place only leaves out what it can't do.
+ */
 export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
-  resolve: MessageResolver = m,
+  resolve: MFunctionType = mFallback,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
     ...(state.canFind
@@ -226,6 +235,23 @@ export function buildThreadActionMenuItems(
                   },
                 ],
               },
+        ]
+      : []),
+    ...(state.arrange
+      ? [
+          { id: "arrange" as const, label: "Arrange threads…", icon: "arrow-up-down" },
+          {
+            id: "move-up" as const,
+            label: "Move up",
+            icon: "arrow-up",
+            disabled: !state.arrange.canMoveUp,
+          },
+          {
+            id: "move-down" as const,
+            label: "Move down",
+            icon: "arrow-down",
+            disabled: !state.arrange.canMoveDown,
+          },
         ]
       : []),
     {
@@ -337,7 +363,15 @@ export function buildThreadActionMenuItems(
         { id: "copy-thread-id", label: resolve(msg("Thread ID")), icon: "hash" },
       ],
     },
-    { id: "project-settings", label: resolve(msg("Project settings")), icon: "settings" },
+    ...(state.canOpenProjectSettings
+      ? [
+          {
+            id: "project-settings" as const,
+            label: resolve(msg("Project settings")),
+            icon: "settings",
+          },
+        ]
+      : []),
     {
       id: "archive",
       label: resolve(msg("Archive thread")),

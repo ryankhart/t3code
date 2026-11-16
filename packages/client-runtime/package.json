@@ -555,6 +555,10 @@
       "types": "./src/threadPullRequests.ts",
       "default": "./src/threadPullRequests.ts"
     },
+    "./thread-action-menu": {
+      "types": "./src/threadActionMenu.ts",
+      "default": "./src/threadActionMenu.ts"
+    },
     "./thread-reference": {
       "types": "./src/threadReference.ts",
       "default": "./src/threadReference.ts"

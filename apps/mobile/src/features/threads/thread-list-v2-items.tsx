@@ -5,7 +5,6 @@ import {
   THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME,
   THREAD_LIST_V2_ROW_DIVIDERS,
   selectedThreadRowColors,
-  getThreadListV2NewBranchMenuTitle,
   getThreadListV2RowAppearance,
 } from "./thread-list-v2-row-appearance";
 import { RowPressable } from "../../components/ui/RowPressable";
@@ -33,7 +32,7 @@ import {
 import { toServerClock } from "@t3tools/client-runtime/clock";
 import type { SnoozePresetSetting } from "@t3tools/contracts/settings";
 import { canSnooze } from "@t3tools/client-runtime/state/thread-settled";
-import { threadChipCopyTarget } from "@t3tools/client-runtime/thread-reference";
+import { buildThreadActionMenuItems } from "@t3tools/client-runtime/thread-action-menu";
 import type { MenuAction } from "@react-native-menu/menu";
 import { useNavigation } from "@react-navigation/native";
 import { msg, T, useGT, useMessages } from "gt-react-native";
@@ -50,8 +49,6 @@ import { ProjectFavicon } from "../../components/ProjectFavicon";
 import { ProviderInstanceIcon, providerInstanceNameLabel } from "../../components/ProviderIcon";
 import { useNowAfter } from "../../lib/clock";
 import { cn } from "../../lib/cn";
-import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
-import { copyThreadReference } from "../../lib/copyThreadReference";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useEnvironmentScope, useEnvironmentScopeDenied } from "../../state/session";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
@@ -71,13 +68,14 @@ import { ThreadSwipeable } from "../home/thread-swipe-actions";
 import { SETTLED_SHELF_PULSE_KEY, useReturnPulseToken } from "../home/return-pulse";
 import { ReturnPulseOverlay } from "./ReturnPulseOverlay";
 import { scopedThreadKey } from "../../lib/scopedEntities";
-import { buildThreadTitleRegenerationMenuItems } from "./thread-title-regeneration-menu";
+import { menuActionsFromThreadMenu } from "./thread-action-menu";
+import { useThreadMenuUtilities } from "./use-thread-menu-utilities";
 import {
   moveThreadToProject,
   turnThreadIntoProject,
   useThreadProjectActions,
 } from "./turnThreadIntoProject";
-import { moveToProjectMenuEventId, parseMoveToProjectMenuEvent } from "./thread-move-targets";
+import { parseMoveToProjectMenuEvent } from "./thread-move-targets";
 import { threadCanArchive } from "../home/threadArchive";
 import { useCanShareWithGuest } from "./useCanShareWithGuest";
 import {
@@ -89,7 +87,6 @@ import {
   resolveThreadListV2RowStatus,
   resolveThreadListV2Status,
   resolveThreadListV2SwipeActions,
-  layoutThreadListV2RowMenuActions,
   threadListV2RowAccessibilityLabel,
   type ThreadListV2Status,
 } from "./threadListV2";
@@ -187,54 +184,6 @@ function ThreadListV2Duration(props: {
     </>
   );
 }
-
-const CARD_MENU_ACTIONS: MenuAction[] = [
-  { id: "settle", title: msg("Settle", { $context: "verb, thread action" }), image: "checkmark" },
-  {
-    id: "delete",
-    title: msg("Delete", { $context: "verb, thread action" }),
-    image: "trash",
-    attributes: { destructive: true },
-  },
-];
-
-const SLIM_MENU_ACTIONS: MenuAction[] = [
-  {
-    id: "unsettle",
-    title: msg("Un-settle", { $context: "verb, thread action" }),
-    image: "arrow.uturn.backward",
-  },
-  {
-    id: "delete",
-    title: msg("Delete", { $context: "verb, thread action" }),
-    image: "trash",
-    attributes: { destructive: true },
-  },
-];
-
-const SNOOZED_MENU_ACTIONS: MenuAction[] = [
-  { id: "unsnooze", title: msg("Wake thread"), image: "clock" },
-  {
-    id: "delete",
-    title: msg("Delete", { $context: "verb, thread action" }),
-    image: "trash",
-    attributes: { destructive: true },
-  },
-];
-
-const LEGACY_MENU_ACTIONS: MenuAction[] = [
-  {
-    id: "archive",
-    title: msg("Archive", { $context: "verb, thread action" }),
-    image: "archivebox",
-  },
-  {
-    id: "delete",
-    title: msg("Delete", { $context: "verb, thread action" }),
-    image: "trash",
-    attributes: { destructive: true },
-  },
-];
 
 function ThreadListV2Section(props: {
   readonly label: string;
@@ -923,7 +872,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   );
 
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
-  const markThreadUnread = useAtomCommand(threadEnvironment.markUnread, { reportFailure: false });
   const handleAcknowledgeWoke = useCallback(() => {
     if (props.wokeAt === null) return;
     void visitThread({
@@ -1027,231 +975,77 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     ],
     [gt, snoozePresets],
   );
-  const reorderMenuItems = useMemo<MenuAction[]>(
-    () =>
-      props.reorderSupported === true
-        ? [
-            { id: "arrange", title: gt("Arrange threads…"), image: "line.3.horizontal" },
-            {
-              id: "move-up",
-              title: gt("Move up"),
-              image: "arrow.up",
-              attributes: { disabled: props.canMoveUp !== true },
-            } satisfies MenuAction,
-            {
-              id: "move-down",
-              title: gt("Move down"),
-              image: "arrow.down",
-              attributes: { disabled: props.canMoveDown !== true },
-            } satisfies MenuAction,
-          ]
-        : [],
-    [gt, props.canMoveDown, props.canMoveUp, props.reorderSupported],
-  );
-  const pinMenuItems = useMemo<MenuAction[]>(
-    () =>
-      props.pinningSupported
-        ? [
-            thread.pinnedAt != null
-              ? {
-                  id: "unpin",
-                  title: gt("Unpin", { $context: "verb, thread action" }),
-                  image: "pin.slash",
-                }
-              : { id: "pin", title: gt("Pin", { $context: "verb, thread action" }), image: "pin" },
-          ]
-        : [],
-    [gt, props.pinningSupported, thread.pinnedAt],
-  );
-  const autoSettleMenuItems = useMemo<MenuAction[]>(
-    () =>
-      props.autoSettleOptOutSupported
-        ? [
-            {
-              id: "auto-settle",
-              title: gt("Auto-settle behavior"),
-              image: "timer",
-              subactions: [
-                {
-                  id: "auto-settle:enabled",
-                  title: gt("Follow settings"),
-                  state: thread.autoSettleDisabledAt == null ? "on" : "off",
-                },
-                {
-                  id: "auto-settle:disabled",
-                  title: gt("Never", { $context: "never auto-settle this thread" }),
-                  state: thread.autoSettleDisabledAt == null ? "off" : "on",
-                },
-              ],
-            } satisfies MenuAction,
-          ]
-        : [],
-    [gt, props.autoSettleOptOutSupported, thread.autoSettleDisabledAt],
-  );
   const { canTurnIntoProject, moveTargets } = useThreadProjectActions(thread);
-  const titleMenuItems = useMemo<MenuAction[]>(
-    () => [
-      {
-        id: "rename",
-        title: gt("Rename", { $context: "verb, thread action" }),
-        image: "square.and.pencil",
-      },
-      ...buildThreadTitleRegenerationMenuItems(
-        {
-          supported: props.titleRegenerationSupported,
-          isRegenerating: isRegeneratingTitle,
-        },
-        m,
-      ),
-      ...(thread.latestRun?.completedAt != null && threadCanArchive(thread.runtime)
-        ? [{ id: "mark-unread", title: gt("Mark unread"), image: "envelope.badge" }]
-        : []),
-      ...(canTurnIntoProject
-        ? [
-            {
-              id: "turn-into-project",
-              title: gt("Turn into project"),
-              image: "folder.badge.plus",
-              attributes: { disabled: !threadCanArchive(thread.runtime) },
-            } satisfies MenuAction,
-          ]
-        : []),
-      ...(moveTargets.length > 0
-        ? [
-            {
-              id: "move-to-project",
-              title: "Move to project",
-              image: "folder.fill",
-              attributes: { disabled: !threadCanArchive(thread.runtime) },
-              subactions: moveTargets.map((target) => ({
-                id: moveToProjectMenuEventId(target.id),
-                title: target.title,
-              })),
-            } satisfies MenuAction,
-          ]
-        : []),
-    ],
-    [
-      canTurnIntoProject,
-      gt,
-      m,
-      moveTargets,
-      props.titleRegenerationSupported,
-      thread.latestRun,
-      thread.runtime,
-      isRegeneratingTitle,
-    ],
-  );
   const menuActions = useMemo<MenuAction[]>(() => {
-    const nested = Platform.OS === "ios";
-    const localized = (action: MenuAction): MenuAction => ({ ...action, title: m(action.title) });
-    const direct: MenuAction[] = [
-      ...(thread.branch
-        ? [
-            {
-              id: "new-thread-on-branch",
-              title: getThreadListV2NewBranchMenuTitle(thread.branch, m),
-              image: "square.and.pencil",
-            },
-          ]
-        : []),
-      { id: "copy-thread", title: gt("Copy thread"), image: "text.bubble" },
-      { id: "copy-thread-id", title: gt("Copy thread ID"), image: "doc.on.doc" },
-      ...(canShareWithGuest
-        ? [{ id: "share-guest", title: gt("Share with guest"), image: "person.badge.plus" }]
-        : []),
-    ];
-    if (snoozedRow) {
-      return layoutThreadListV2RowMenuActions(
-        {
-          nested,
-          direct: [...direct, localized(SNOOZED_MENU_ACTIONS[0]!)],
-          reorder: [],
-          pin: [],
-          secondary: [
-            ...titleMenuItems,
-            ...autoSettleMenuItems,
-            localized(LEGACY_MENU_ACTIONS[0]!),
-            localized(SNOOZED_MENU_ACTIONS[1]!),
-          ],
-        },
-        m,
-      );
-    }
-    if (!props.settlementSupported) {
-      return layoutThreadListV2RowMenuActions(
-        {
-          nested,
-          direct: [...direct, localized(LEGACY_MENU_ACTIONS[0]!)],
-          reorder: reorderMenuItems,
-          pin: pinMenuItems,
-          secondary: [...titleMenuItems, localized(LEGACY_MENU_ACTIONS[1]!)],
-        },
-        m,
-      );
-    }
-    if (canUnsettle) {
-      return layoutThreadListV2RowMenuActions(
-        {
-          nested,
-          direct: [...direct, localized(SLIM_MENU_ACTIONS[0]!)],
-          reorder: reorderMenuItems.filter(
-            (action) => action.id !== "move-up" && action.id !== "move-down",
-          ),
-          pin: pinMenuItems,
-          secondary: [
-            ...titleMenuItems,
-            ...autoSettleMenuItems,
-            localized(LEGACY_MENU_ACTIONS[0]!),
-            localized(SLIM_MENU_ACTIONS[1]!),
-          ],
-        },
-        m,
-      );
-    }
-    return layoutThreadListV2RowMenuActions(
+    const items = buildThreadActionMenuItems(
       {
-        nested,
-        direct: [
-          ...direct,
-          localized(CARD_MENU_ACTIONS[0]!),
-          ...(swipeActions.secondary === "snooze"
-            ? [
-                {
-                  id: "snooze",
-                  title: gt("Snooze", { $context: "verb, thread action" }),
-                  image: "clock",
-                  subactions: snoozePresetActions,
-                },
-              ]
-            : []),
-        ],
-        reorder: reorderMenuItems,
-        pin: pinMenuItems,
-        secondary: [
-          ...titleMenuItems,
-          ...autoSettleMenuItems,
-          localized(LEGACY_MENU_ACTIONS[0]!),
-          localized(CARD_MENU_ACTIONS[1]!),
-        ],
+        canOperate: canOperateThread,
+        branch: thread.branch ?? null,
+        projectFilter: null,
+        isPinned: thread.pinnedAt != null,
+        isSettled: canUnsettle,
+        autoSettleEnabled: thread.autoSettleDisabledAt == null,
+        isSnoozed: snoozedRow,
+        canSnoozeNow: swipeActions.secondary === "snooze",
+        isRegeneratingTitle,
+        isRunning: !threadCanArchive(thread.runtime),
+        hasCompletedRun: thread.latestRun?.completedAt != null,
+        supports: {
+          settlement: props.settlementSupported,
+          autoSettleOptOut: props.autoSettleOptOutSupported,
+          snooze: props.snoozeSupported,
+          pinning: props.pinningSupported,
+          titleRegeneration: props.titleRegenerationSupported,
+        },
+        snoozePresets,
+        canShareWithGuest,
+        canTurnIntoProject,
+        moveTargets,
+        ...(props.reorderSupported === true
+          ? {
+              arrange: {
+                canMoveUp: props.canMoveUp === true,
+                canMoveDown: props.canMoveDown === true,
+              },
+            }
+          : {}),
+        canOpenProjectSettings: false,
       },
       m,
     );
+    return menuActionsFromThreadMenu(
+      // Settled rows are ordered by when they settled, so only the arrange sheet applies.
+      canUnsettle
+        ? items.filter((item) => item.id !== "move-up" && item.id !== "move-down")
+        : items,
+      { nestAfterFirstGroup: Platform.OS === "ios" },
+    );
   }, [
-    autoSettleMenuItems,
+    canOperateThread,
     canShareWithGuest,
+    canTurnIntoProject,
     canUnsettle,
-    pinMenuItems,
-    props.settlementSupported,
-    reorderMenuItems,
-    snoozePresetActions,
-    snoozedRow,
-    gt,
+    isRegeneratingTitle,
     m,
+    moveTargets,
+    props.autoSettleOptOutSupported,
+    props.canMoveDown,
+    props.canMoveUp,
+    props.pinningSupported,
+    props.reorderSupported,
+    props.settlementSupported,
+    props.snoozeSupported,
+    props.titleRegenerationSupported,
+    snoozePresets,
+    snoozedRow,
     swipeActions.secondary,
+    thread.autoSettleDisabledAt,
     thread.branch,
-    titleMenuItems,
+    thread.latestRun?.completedAt,
+    thread.pinnedAt,
+    thread.runtime,
   ]);
+  const runMenuUtility = useThreadMenuUtilities();
   const handleMenuAction = useCallback(
     ({ nativeEvent }: { readonly nativeEvent: { readonly event: string } }) => {
       if (nativeEvent.event === "new-thread-on-branch") onNewThreadOnBranch(thread);
@@ -1269,31 +1063,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       if (nativeEvent.event === "rename") handleRename();
       if (nativeEvent.event === "regenerate-title") handleRegenerateTitle();
       if (nativeEvent.event === "turn-into-project") void turnThreadIntoProject(thread);
-      if (nativeEvent.event === "mark-unread") {
-        void markThreadUnread({
-          environmentId: thread.environmentId,
-          input: { threadId: thread.id },
-        });
-      }
       const moveToProjectId = parseMoveToProjectMenuEvent(nativeEvent.event);
       if (moveToProjectId !== null) {
         void moveThreadToProject(thread, moveToProjectId);
         return;
       }
-      if (nativeEvent.event === "copy-thread") {
-        const target = threadChipCopyTarget(
-          { environmentId: thread.environmentId, threadId: thread.id },
-          thread.title,
-          undefined,
-          m,
-        );
-        void copyThreadReference(target).then((didCopy) => {
-          if (!didCopy) Dialog.alert(target.failureTitle, gt("Try copying this thread again."));
-        });
-      }
-      if (nativeEvent.event === "copy-thread-id") {
-        copyTextWithHaptic(thread.id, { target: "thread-id" });
-      }
+      if (runMenuUtility(nativeEvent.event, thread, props.project?.workspaceRoot || null)) return;
       if (nativeEvent.event === "share-guest") {
         navigation.navigate("ThreadGuestShare", {
           environmentId: thread.environmentId,
@@ -1325,6 +1100,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       m,
       onNewThreadOnBranch,
       thread,
+      runMenuUtility,
+      props.project?.workspaceRoot,
       navigation,
       handleArchive,
       handleDelete,
@@ -1339,7 +1116,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       handleUnpin,
       handleUnsettle,
       handleUnsnooze,
-      markThreadUnread,
       setCustomSnoozeOpen,
       snoozePresets,
       props.snoozePresets,
