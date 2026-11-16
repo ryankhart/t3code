@@ -12,13 +12,17 @@ const threadRef = scopeThreadRef(
 describe("settleAndAdvance", () => {
   it("keeps a remounted sidebar's handler when the old one unmounts late", () => {
     const settledBy: string[] = [];
-    const unregisterOld = registerSettleAndAdvance(() => settledBy.push("old"));
-    const unregisterNew = registerSettleAndAdvance(() => settledBy.push("new"));
+    const unregisterOld = registerSettleAndAdvance(async () => {
+      settledBy.push("old");
+    });
+    const unregisterNew = registerSettleAndAdvance(async () => {
+      settledBy.push("new");
+    });
     unregisterOld();
 
-    expect(settleAndAdvance(threadRef)).toBe(true);
+    expect(settleAndAdvance(threadRef)).not.toBeNull();
     expect(settledBy).toEqual(["new"]);
     unregisterNew();
-    expect(settleAndAdvance(threadRef)).toBe(false);
+    expect(settleAndAdvance(threadRef)).toBeNull();
   });
 });

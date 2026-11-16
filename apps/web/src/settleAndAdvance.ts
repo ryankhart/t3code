@@ -1,6 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 
-type SettleAndAdvance = (threadRef: ScopedThreadRef) => void;
+type SettleAndAdvance = (threadRef: ScopedThreadRef) => Promise<void>;
 
 let registeredSettleAndAdvance: SettleAndAdvance | null = null;
 
@@ -11,9 +11,7 @@ export function registerSettleAndAdvance(handler: SettleAndAdvance): () => void 
   };
 }
 
-/** False means no sidebar is mounted; settle in place. */
-export function settleAndAdvance(threadRef: ScopedThreadRef): boolean {
-  if (!registeredSettleAndAdvance) return false;
-  registeredSettleAndAdvance(threadRef);
-  return true;
+/** Settles through the sidebar, finishing once it has moved on; null means no sidebar is mounted, so settle in place. */
+export function settleAndAdvance(threadRef: ScopedThreadRef): Promise<void> | null {
+  return registeredSettleAndAdvance?.(threadRef) ?? null;
 }

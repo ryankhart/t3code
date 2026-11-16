@@ -271,11 +271,13 @@ export function useThreadActionMenu(input: {
         }
         return;
       }
-      case "settle":
+      case "settle": {
         // Like the settle shortcut: the sidebar settles and moves on; without one, settle in place.
-        if (settleAndAdvance(threadRef)) return;
-        await reportFailure(m(msg("Failed to settle thread")), () => settleThread(threadRef));
+        const advancing = settleAndAdvance(threadRef);
+        if (advancing !== null) await advancing;
+        else await reportFailure(m(msg("Failed to settle thread")), () => settleThread(threadRef));
         return;
+      }
       case "unsettle":
         await reportFailure(m(msg("Failed to un-settle thread")), () =>
           unsettleThread(threadRef),
