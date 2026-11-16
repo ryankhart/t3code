@@ -2898,3 +2898,60 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
     .element(screen.getByRole("button", { name: "Open the current tab", exact: true }))
     .toBeVisible();
 });
+
+// Custom build: the Previous prompt button.
+describe("MessagesTimeline previous prompt button", () => {
+  it("walks back one prompt per press, starting with the last prompt", async () => {
+    setup();
+    const props = baseProps();
+    const longAnswer = (index: number) =>
+      Array.from({ length: 40 }, (_, line) => `Answer ${index} paragraph ${line}.`).join("\n\n");
+    const entries = Array.from({ length: 4 }, (_, index) => [
+      message(`Question ${index}`, {}, `user-${index}`),
+      message(longAnswer(index), { role: "assistant" }, `assistant-${index}`),
+    ]).flat();
+    await using screen = await renderTimeline(entries, { ...props, previousPromptBottom: 8 });
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    await vi.waitFor(() => {
+      expect(viewport.scrollTop).toBeGreaterThan(0);
+      expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
+      expect(screen.buttons("Previous prompt")).toHaveLength(1);
+    });
+    const promptOffset = (index: number) => {
+      const prompt = [...screen.container.querySelectorAll<HTMLElement>("*")].find(
+        (element) => element.childElementCount === 0 && element.textContent === `Question ${index}`,
+      );
+      if (!prompt) return null;
+      return prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+    };
+    // Lands with the prompt just under the top edge, once the animated scroll stops.
+    const expectPromptAtTop = async (index: number) => {
+      let previousScroll = Number.NaN;
+      await vi.waitFor(
+        () => {
+          const scroll = viewport.scrollTop;
+          const settled = scroll === previousScroll;
+          previousScroll = scroll;
+          expect(settled).toBe(true);
+          const offset = promptOffset(index);
+          expect(offset).not.toBeNull();
+          expect(offset!).toBeGreaterThanOrEqual(0);
+          expect(offset!).toBeLessThan(80);
+        },
+        { timeout: 4000, interval: 100 },
+      );
+    };
+
+    for (const index of [3, 2, 1, 0]) {
+      await click(screen.button("Previous prompt"));
+      await expectPromptAtTop(index);
+    }
+    await vi.waitFor(() => expect(screen.buttons("Previous prompt")).toHaveLength(0));
+
+    // Scrolling elsewhere starts over from the reply being read.
+    viewport.scrollTop = viewport.scrollHeight;
+    await vi.waitFor(() => expect(screen.buttons("Previous prompt")).toHaveLength(1));
+    await click(screen.button("Previous prompt"));
+    await expectPromptAtTop(3);
+  });
+});
