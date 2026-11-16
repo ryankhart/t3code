@@ -17,10 +17,11 @@ function menuIcon(icon: AppSymbolName): string | undefined {
   return typeof icon === "string" ? icon : icon.android;
 }
 
-/** One "More" menu: plain items first, then each tool menu as a submenu. */
+/** One "More" menu: plain items first, then each tool menu as a submenu, then the thread's actions. */
 function overflowMenu(
   items: ReadonlyArray<AppBarMenuItem>,
   submenus: ReadonlyArray<AppBarMenu>,
+  threadItems: ReadonlyArray<AppBarMenuItem>,
 ): AppBarMenu[] {
   const all: AppBarMenuItem[] = [
     ...items,
@@ -30,6 +31,7 @@ function overflowMenu(
       icon: menuIcon(menu.icon),
       items: menu.items,
     })),
+    ...threadItems,
   ];
   if (all.length === 0) return [];
   return [
@@ -57,6 +59,8 @@ export function ThreadHeader(props: {
     readonly busy: boolean;
     readonly onPress: () => void;
   };
+  /** The thread's own actions, in the order its thread-list row shows them. */
+  readonly threadMenuItems?: ReadonlyArray<AppBarMenuItem>;
 }) {
   const goBack = useWorkspaceBackNavigation();
   const { layout, toggleAuxiliaryPane, startNewTask } = useAdaptiveWorkspaceLayout();
@@ -92,8 +96,9 @@ export function ThreadHeader(props: {
       ]
     : [];
   const toolMenus = [gitMenu, terminalMenu].filter((menu): menu is AppBarMenu => menu !== null);
-  // Phones: the title needs the room, so files, Git and the terminal share one overflow menu and
-  // only Settle stays a button.
+  const threadMenuItems = props.threadMenuItems ?? [];
+  // Phones: the title needs the room, so files, Git, the terminal and the thread's actions share
+  // one overflow menu and only Settle stays a button.
   const collapseTools = layout.variant === "compact";
   const actions = collapseTools ? settleAction : [...settleAction, ...fileActions];
   const menus = collapseTools
@@ -107,8 +112,21 @@ export function ThreadHeader(props: {
           onPress: action.onPress,
         })),
         toolMenus,
+        threadMenuItems,
       )
-    : toolMenus;
+    : [
+        ...toolMenus,
+        ...(threadMenuItems.length > 0
+          ? [
+              {
+                title: "Thread actions",
+                icon: { ios: "ellipsis.circle", android: "more_vert" } as const,
+                separateBackground: false,
+                items: threadMenuItems,
+              },
+            ]
+          : []),
+      ];
 
   return (
     <AppBar
