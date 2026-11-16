@@ -191,6 +191,8 @@ import {
   FLOATING_WORKING_CONTROL_COVERAGE,
   FloatingWorkingControl,
 } from "./floating-working-control";
+import { PreviousPromptButton } from "./previous-prompt-button";
+import { createPreviousPromptNavigator } from "@t3tools/shared/previousPrompt";
 import { connectionFloatingStatus, type FloatingWorkingStatus } from "./floating-working-status";
 import {
   derivePendingUserInputMaxHeight,
@@ -545,6 +547,18 @@ function ThreadDetailBody(
   };
   const [anchorMessageId, setAnchorMessageId] = useState<MessageId | null>(null);
   const [isAtEnd, setIsAtEnd] = useState(true);
+  // Custom build: the Previous prompt button walks the feed back one prompt per tap.
+  const [previousPromptNavigator] = useState(() =>
+    createPreviousPromptNavigator<{
+      readonly id: string;
+      readonly type: string;
+      readonly message?: { readonly role: string };
+    }>({
+      isPrompt: (entry) => entry.type === "message" && entry.message?.role === "user",
+      keyOf: (entry) => entry.id,
+    }),
+  );
+  const [canGoToPreviousPrompt, setCanGoToPreviousPrompt] = useState(false);
   const [sendingWithKeyboard, setSendingWithKeyboard] = useState(false);
   if (sendingWithKeyboard && !isKeyboardVisible) setSendingWithKeyboard(false);
   // Keep the bottom padding fixed while the keyboard animates. Changing it at
@@ -1427,6 +1441,15 @@ function ThreadDetailBody(
   };
 
   const showScrollToEndButton = !props.draftMode && contentPresentationKind === "ready" && !isAtEnd;
+  const showPreviousPromptButton =
+    !props.draftMode && contentPresentationKind === "ready" && canGoToPreviousPrompt;
+  const handlePreviousPrompt = () => {
+    void Haptics.selectionAsync();
+    void previousPromptNavigator.goBack(listRef.current, {
+      animated: !reduceMotion,
+      viewOffset: 12,
+    });
+  };
   const { themeAppearance } = useAppearancePreferences();
   const isDarkMode = themeAppearance === "dark";
 
@@ -1499,57 +1522,60 @@ function ThreadDetailBody(
             <WorkspaceMutationIdProvider threadRef={props.selectedThreadDetailRef}>
               {/* Custom build: leaving the thread stops a reply from it being read aloud. */}
               <ReadAloudOwner ownerKey={selectedThreadKey}>
-              <ColumnWidth width={columnWidth}>
-                <ThreadFeed
-                  toolCallVisibility={toolCallVisibility}
-                  environmentId={props.environmentId}
-                  threadId={props.selectedThread.id}
-                  detailRef={props.selectedThreadDetailRef}
-                  workspaceRoot={props.threadCwd}
-                  feed={props.selectedThreadFeed}
-                  pendingHandoff={props.pendingHandoff}
-                  worktreeSetup={props.worktreeSetup}
-                  setupWorkingStartedAt={props.setupWorkingStartedAt}
-                  queuedMessages={props.queuedMessages}
-                  dispatchingMessageId={props.dispatchingMessageId}
-                  // A native subagent has no composer to edit a pending message in;
-                  // Cancel on the edit banner would discard it.
-                  onEditPendingMessage={
-                    isProviderSubagent || pendingMessageEditBlocked
-                      ? null
-                      : handleEditPendingMessage
-                  }
-                  contentPresentation={props.contentPresentation}
-                  threadTitle={props.selectedThread.title}
-                  latestRun={props.activityRun}
-                  activeWorkStartedAt={props.activeWorkStartedAt}
-                  runlessWorkActive={props.runlessWorkActive ?? false}
-                  listRef={listRef}
-                  freeze={freeze}
-                  anchorMessageId={anchorMessageId}
-                  jumpToMessageId={jumpMessageLoaded ? jumpMessageId : null}
-                  onJumpedToMessage={() => finishThreadMessageJump(selectedThreadKey)}
-                  contentInsetEndAdjustment={combinedContentInsetEndAdjustment}
-                  keyboardOffset={composerKeyboardOffset}
-                  sendingWithKeyboard={sendingWithKeyboard}
-                  fitShortFeedToViewport={questionInFlow && !isKeyboardVisible}
-                  contentBottomInset={
-                    questionInFlow
-                      ? 0
-                      : estimatedOverlayHeight +
-                        (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0)
-                  }
-                  contentMaxWidth={contentMaxWidth}
-                  historyControls={props.historyControls}
-                  contentSideInsets={deriveContentSideInsets(nativeMetrics)}
-                  layoutVariant={layoutVariant}
-                  usesAutomaticContentInsets={props.usesAutomaticContentInsets}
-                  onHeaderMaterialVisibilityChange={props.onHeaderMaterialVisibilityChange}
-                  onIsAtEndChange={setIsAtEnd}
-                  skills={selectedProviderSkills}
-                  onUseArtifactTemplate={handleUseArtifactTemplate}
-                />
-              </ColumnWidth>
+                <ColumnWidth width={columnWidth}>
+                  <ThreadFeed
+                    toolCallVisibility={toolCallVisibility}
+                    environmentId={props.environmentId}
+                    threadId={props.selectedThread.id}
+                    detailRef={props.selectedThreadDetailRef}
+                    workspaceRoot={props.threadCwd}
+                    feed={props.selectedThreadFeed}
+                    pendingHandoff={props.pendingHandoff}
+                    worktreeSetup={props.worktreeSetup}
+                    setupWorkingStartedAt={props.setupWorkingStartedAt}
+                    queuedMessages={props.queuedMessages}
+                    dispatchingMessageId={props.dispatchingMessageId}
+                    // A native subagent has no composer to edit a pending message in;
+                    // Cancel on the edit banner would discard it.
+                    onEditPendingMessage={
+                      isProviderSubagent || pendingMessageEditBlocked
+                        ? null
+                        : handleEditPendingMessage
+                    }
+                    contentPresentation={props.contentPresentation}
+                    threadTitle={props.selectedThread.title}
+                    latestRun={props.activityRun}
+                    activeWorkStartedAt={props.activeWorkStartedAt}
+                    runlessWorkActive={props.runlessWorkActive ?? false}
+                    listRef={listRef}
+                    freeze={freeze}
+                    anchorMessageId={anchorMessageId}
+                    jumpToMessageId={jumpMessageLoaded ? jumpMessageId : null}
+                    onJumpedToMessage={() => finishThreadMessageJump(selectedThreadKey)}
+                    contentInsetEndAdjustment={combinedContentInsetEndAdjustment}
+                    keyboardOffset={composerKeyboardOffset}
+                    sendingWithKeyboard={sendingWithKeyboard}
+                    fitShortFeedToViewport={questionInFlow && !isKeyboardVisible}
+                    contentBottomInset={
+                      questionInFlow
+                        ? 0
+                        : estimatedOverlayHeight +
+                          (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0)
+                    }
+                    contentMaxWidth={contentMaxWidth}
+                    historyControls={props.historyControls}
+                    contentSideInsets={deriveContentSideInsets(nativeMetrics)}
+                    layoutVariant={layoutVariant}
+                    usesAutomaticContentInsets={props.usesAutomaticContentInsets}
+                    onHeaderMaterialVisibilityChange={props.onHeaderMaterialVisibilityChange}
+                    onIsAtEndChange={(atEnd) => {
+                      setIsAtEnd(atEnd);
+                      setCanGoToPreviousPrompt(previousPromptNavigator.canGoBack(listRef.current));
+                    }}
+                    skills={selectedProviderSkills}
+                    onUseArtifactTemplate={handleUseArtifactTemplate}
+                  />
+                </ColumnWidth>
               </ReadAloudOwner>
             </WorkspaceMutationIdProvider>
           </RenderErrorBoundary>
@@ -1652,6 +1678,7 @@ function ThreadDetailBody(
                     }
                     showScrollToEnd={showScrollToEndButton}
                     onScrollToEnd={handleScrollToEnd}
+                    reserveSideControls={!props.draftMode && contentPresentationKind === "ready"}
                     agents={agentsSegment}
                     onOpenAgents={() => {
                       Keyboard.dismiss();
@@ -1669,6 +1696,13 @@ function ThreadDetailBody(
                       });
                     }}
                   />
+                  {showPreviousPromptButton ? (
+                    <PreviousPromptButton
+                      colorScheme={isDarkMode ? "dark" : "light"}
+                      lift={floatingControlLift}
+                      onPress={handlePreviousPrompt}
+                    />
+                  ) : null}
                   <ComposerPanels
                     className="w-full"
                     style={Platform.OS === "android" ? composerPanelsHeightStyle : undefined}

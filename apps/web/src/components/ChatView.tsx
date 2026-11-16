@@ -3861,6 +3861,7 @@ export default function ChatView(props: ChatViewProps) {
                   {...(threadHistoryControls === undefined
                     ? {}
                     : { historyControls: threadHistoryControls })}
+                  previousPromptBottom={isThreadFindActive ? null : scrollToEndClearance + 4}
                 />
               </WorkspaceMutationIdContext>
 

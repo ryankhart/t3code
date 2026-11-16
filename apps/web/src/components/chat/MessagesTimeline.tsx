@@ -104,6 +104,8 @@ import { TimelineSystemDivider } from "./TimelineSystemDivider";
 
 import { forwardWheelToTimeline } from "./timelineMinimapWheel";
 import { TimelineMinimap } from "./TimelineMinimap";
+import { PreviousPromptButton } from "./PreviousPromptButton";
+import { createPreviousPromptNavigator } from "@t3tools/shared/previousPrompt";
 import {
   type TimelineRowSharedState,
   type TimelineRowActivityState,
@@ -332,6 +334,8 @@ interface MessagesTimelineProps {
   emptyPlaceholderInset: number;
   topFadeEnabled?: boolean;
   historyControls?: MessagesTimelineHistoryControls | undefined;
+  /** Custom build: the Previous prompt button's distance from the bottom; null hides it. */
+  previousPromptBottom?: number | null;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
@@ -431,6 +435,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   emptyPlaceholderInset,
   topFadeEnabled = false,
   historyControls,
+  previousPromptBottom = null,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // Snapshot restore positions on identity changes; ongoing scroll writes must not move them.
@@ -922,6 +927,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const [minimapHitStripWidth, setMinimapHitStripWidth] = useState(0);
   const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
   const [minimapAtEnd, setMinimapAtEnd] = useState(false);
+  const [previousPromptNavigator] = useState(() =>
+    createPreviousPromptNavigator<MessagesTimelineRow>({
+      isPrompt: (row) => row.kind === "message" && row.message.role === "user",
+      keyOf: (row) => row.id,
+    }),
+  );
+  const [canGoToPreviousPrompt, setCanGoToPreviousPrompt] = useState(false);
   const handleAnchorReady = (info: { anchorIndex: number | undefined }) => {
     if (anchorMessageId !== null && info.anchorIndex !== undefined) {
       onAnchorReady(anchorMessageId, info.anchorIndex);
@@ -953,6 +965,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const refreshMinimap = useStableCallback(() => {
     const state = listRef.current?.getState?.();
     if (restoringThreadPosition || state?.data !== rows) return;
+    setCanGoToPreviousPrompt(previousPromptNavigator.canGoBack(listRef.current));
     if (!state || minimapItems.length === 0) {
       return;
     }
@@ -1542,6 +1555,18 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 });
               }}
             />
+            {previousPromptBottom !== null && canGoToPreviousPrompt ? (
+              <PreviousPromptButton
+                bottom={previousPromptBottom}
+                onPress={() => {
+                  navigateTimeline();
+                  void previousPromptNavigator.goBack(listRef.current, {
+                    animated: !prefersReducedMotion,
+                    viewOffset: TIMELINE_MINIMAP_TARGET_OFFSET,
+                  });
+                }}
+              />
+            ) : null}
           </TooltipScrollDismissArea>
         </TimelineRowActivityCtx>
       </MarkdownFindContext>
