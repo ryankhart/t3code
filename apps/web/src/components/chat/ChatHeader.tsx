@@ -487,7 +487,9 @@ export const ChatHeader = memo(function ChatHeader({
           configLoaded={threadEnvironmentPresentation?.serverConfig != null}
           onOpenMenu={openMenu}
           onOpenSnoozeMenu={openSnoozeMenu}
-          onRunAction={(action) => void runAction(action)}
+          settleShortcut={shortcutLabelForCommand(keybindings, "thread.settle")}
+          pinShortcut={shortcutLabelForCommand(keybindings, "thread.pin")}
+          onRunAction={runAction}
         />
       ) : draftId !== undefined ? (
         <DraftHeaderActions onOpenMenu={openDraftMenu} />

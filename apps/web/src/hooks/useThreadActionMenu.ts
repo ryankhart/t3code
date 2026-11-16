@@ -183,14 +183,14 @@ export function useThreadActionMenu(input: {
       if (shown.length === 0) return;
       const clicked = await settlePromise(() => api.contextMenu.show(shown, position));
       if (clicked._tag === "Failure" || clicked.value === null) return;
-      await runAction(clicked.value, snoozePresets);
+      await runMenuAction(clicked.value, snoozePresets);
     })();
   };
 
-  /** Runs one action as if it were picked from the menu, rechecking permission first. */
-  const runAction = async (
+  /** Runs one picked action against the presets that menu showed, rechecking permission first. */
+  const runMenuAction = async (
     action: ThreadActionMenuId,
-    snoozePresets: ReadonlyArray<SnoozePreset> = [],
+    snoozePresets: ReadonlyArray<SnoozePreset>,
   ) => {
     if (threadRef === null) return;
     const api = readLocalApi();
@@ -430,6 +430,15 @@ export function useThreadActionMenu(input: {
   const closeMenu = () => {
     void readLocalApi()?.contextMenu.close();
   };
+
+  /** Runs one action as if it were picked from the menu just now. */
+  const runAction = (action: ThreadActionMenuId) =>
+    runMenuAction(
+      action,
+      threadRef === null
+        ? []
+        : resolveSnoozePresets(new Date(), timestampFormat, threadRef.environmentId),
+    );
 
   return { openMenu, openSnoozeMenu, runAction, closeMenu };
 }
