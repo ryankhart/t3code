@@ -58,6 +58,10 @@ function settleWidth(next: number) {
 
 const CONTROL_OVERLAY_OFFSET = CONTROL_HEIGHT + CONTROL_GAP - COMPOSER_CAPSULE_INSET;
 export const FLOATING_WORKING_CONTROL_COVERAGE = CONTROL_OVERLAY_OFFSET + CONTROL_GAP;
+/** Custom build: where this row sits, for the Previous prompt button beside it. */
+export const FLOATING_WORKING_CONTROL_ROW_TOP = -CONTROL_OVERLAY_OFFSET;
+// Custom build: room kept free on both sides of the centered row for that button.
+const SIDE_CONTROL_RESERVE = 2 * (CONTROL_HEIGHT + CONTROL_GAP + 12);
 
 export function FloatingWorkingControl(props: {
   readonly colorScheme: "light" | "dark";
@@ -72,6 +76,8 @@ export function FloatingWorkingControl(props: {
   readonly queuedCount: number;
   readonly onOpenQueue: () => void;
   readonly lift?: SharedValue<number>;
+  /** Custom build: keep the row clear of the Previous prompt button at the right edge. */
+  readonly reserveSideControls?: boolean;
 }) {
   const gt = useGT();
   const { width: windowWidth } = useWindowDimensions();
@@ -96,7 +102,9 @@ export function FloatingWorkingControl(props: {
   const agents = props.agents;
   const hasAgents = agents !== null;
   // Only reserve the scroll button's slot while it is visible.
-  const reservedWidth = props.showScrollToEnd ? CONTROL_HEIGHT + 32 : 16;
+  const reservedWidth =
+    (props.showScrollToEnd ? CONTROL_HEIGHT + 32 : 16) +
+    (props.reserveSideControls ? SIDE_CONTROL_RESERVE : 0);
   const availableLabelWidth = Math.max(
     0,
     Math.min(overlayWidth, windowWidth) -

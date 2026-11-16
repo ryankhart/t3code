@@ -407,6 +407,10 @@
       "types": "./src/chatList.ts",
       "import": "./src/chatList.ts"
     },
+    "./previousPrompt": {
+      "types": "./src/previousPrompt.ts",
+      "import": "./src/previousPrompt.ts"
+    },
     "./inlineVisualization": {
       "types": "./src/inlineVisualization.ts",
       "import": "./src/inlineVisualization.ts"
