@@ -27,6 +27,7 @@ const items = buildThreadActionMenuItems({
     { id: "hour", label: "In 1 hour", whenLabel: "3:00 PM", snoozedUntil: "2026-08-07T15:00:00Z" },
   ],
   arrange: { canMoveUp: false, canMoveDown: true },
+  moveTargets: [{ id: "p1", title: "Other project" }],
   canOpenProjectSettings: false,
 });
 
@@ -46,6 +47,7 @@ describe("menuActionsFromThreadMenu", () => {
       "move-down",
       "rename",
       "regenerate-title",
+      "move-to-project",
       "auto-settle",
       "copy",
       "archive",
@@ -55,6 +57,8 @@ describe("menuActionsFromThreadMenu", () => {
     expect(byId.get("move-up")?.attributes).toEqual({ disabled: true });
     expect(byId.get("archive")?.attributes).toEqual({ disabled: true });
     expect(byId.get("delete")?.attributes).toEqual({ destructive: true });
+    // Some phone menus still open a disabled submenu, so its choices must be disabled too.
+    expect(byId.get("move-to-project")?.subactions?.[0]?.attributes).toEqual({ disabled: true });
     expect(byId.get("snooze")?.subactions?.[0]).toMatchObject({
       id: "snooze:hour",
       title: "In 1 hour",
@@ -80,12 +84,9 @@ describe("menuActionsFromThreadMenu", () => {
       "pin",
       "settle",
       "snooze",
-      "arrange",
-      "move-up",
-      "move-down",
       "more",
     ]);
-    expect(nested.at(-1)?.subactions?.[0]?.id).toBe("rename");
+    expect(nested.at(-1)?.subactions?.[0]?.id).toBe("arrange");
     expect(leafIds(nested)).toEqual(leafIds(flat));
   });
 });

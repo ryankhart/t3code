@@ -4,7 +4,7 @@ import type { ContextMenuSource } from "@t3tools/contracts";
 import { msg } from "gt-react";
 
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
-import { useComposerDraftStore, type DraftId } from "../composerDraftStore";
+import { useComposerDraftStore, type DraftId, type DraftSessionState } from "../composerDraftStore";
 import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { readLocalApi } from "../localApi";
 import { useCopyToClipboard } from "./useCopyToClipboard";
@@ -19,13 +19,14 @@ function copyFailureToast(title: string, error: unknown) {
   );
 }
 
-/** The thread header's menu for a thread that hasn't been sent yet; matches its sidebar row. */
-export function useDraftActionMenu(input: {
-  readonly draftId: DraftId | null;
-  readonly projectCwd: string | null;
-  readonly onOpenProjectSettings: (() => void) | undefined;
-}) {
-  const { draftId, projectCwd, onOpenProjectSettings } = input;
+/** Where a draft's menu was opened decides how its project folder and settings are found. */
+type DraftMenuPlace = (session: DraftSessionState) => {
+  readonly workspaceRoot: string | null | undefined;
+  readonly openProjectSettings: (() => void) | undefined;
+};
+
+/** A thread that hasn't been sent yet: the same menu from its sidebar row and its thread header. */
+export function useDraftActionMenu() {
   const { copyToClipboard: copyPathToClipboard } = useCopyToClipboard<{ path: string }>({
     onError: (error) => copyFailureToast("Failed to copy path", error),
   });
@@ -38,19 +39,24 @@ export function useDraftActionMenu(input: {
     onError: (error) => copyFailureToast("Failed to copy branch", error),
   });
 
-  const openMenu = (position: { x: number; y: number }, source?: ContextMenuSource) => {
-    if (draftId === null) return;
+  const openMenu = (
+    draftId: DraftId,
+    position: { x: number; y: number },
+    place: DraftMenuPlace,
+    source?: ContextMenuSource,
+  ) => {
     void (async () => {
       const api = readLocalApi();
       const session = useComposerDraftStore.getState().getDraftSession(draftId);
       if (!api || !session || session.promotedTo) return;
-      const workspacePath = session.worktreePath ?? projectCwd;
+      const { workspaceRoot, openProjectSettings } = place(session);
+      const workspacePath = session.worktreePath ?? workspaceRoot;
       const clicked = await settlePromise(() =>
         api.contextMenu.show(
           buildDraftActionMenuItems({
             hasPath: Boolean(workspacePath),
             hasBranch: Boolean(session.branch),
-            hasProject: onOpenProjectSettings !== undefined,
+            hasProject: openProjectSettings !== undefined,
           }),
           position,
           source,
@@ -59,7 +65,7 @@ export function useDraftActionMenu(input: {
       if (clicked._tag === "Failure") return;
       switch (clicked.value) {
         case "project-settings":
-          onOpenProjectSettings?.();
+          openProjectSettings?.();
           return;
         case "copy-path":
           if (workspacePath) copyPathToClipboard(workspacePath, { path: workspacePath });

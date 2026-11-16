@@ -56,6 +56,7 @@ import {
 } from "@t3tools/client-runtime/state/project-grouping";
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
+import { settleAndAdvance } from "../settleAndAdvance";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
@@ -267,6 +268,8 @@ export function useThreadActionMenu(input: {
         return;
       }
       case "settle":
+        // Like the settle shortcut: the sidebar settles and moves on; without one, settle in place.
+        if (settleAndAdvance(threadRef)) return;
         await reportFailure(m(msg("Failed to settle thread")), () => settleThread(threadRef));
         return;
       case "unsettle":
