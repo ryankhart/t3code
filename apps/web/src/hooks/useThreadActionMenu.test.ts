@@ -146,6 +146,7 @@ vi.mock("./useThreadActions", () => ({
     ),
 }));
 
+import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { registerSidebarProjectFilter } from "../sidebarProjectFilter";
 import { useThreadActionMenu } from "./useThreadActionMenu";
 
@@ -230,6 +231,27 @@ describe("thread header buttons", () => {
       const items = state.show.mock.calls[1]![0];
       expect(items.find((item) => item.id === "filter-by-project")?.label).toBe("Filter by Web");
       expect(state.effects).toEqual(["toggleProjectFilter"]);
+    } finally {
+      unregister();
+    }
+  });
+
+  it("finishes settling only once the sidebar has settled and moved on", async () => {
+    state.granted.add("secondary");
+    const sidebarSettle = deferred<void>();
+    const unregister = registerSettleAndAdvance(() => sidebarSettle.promise);
+    try {
+      let finished = false;
+      const settling = createMenu()
+        .runAction("settle")
+        .then(() => {
+          finished = true;
+        });
+      await Promise.resolve();
+      expect(finished).toBe(false);
+      sidebarSettle.resolve();
+      await settling;
+      expect(finished).toBe(true);
     } finally {
       unregister();
     }
