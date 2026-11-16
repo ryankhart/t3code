@@ -696,7 +696,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         void handleUnsettleActiveThread();
         return;
       }
-      if (settleAndAdvance(activeThreadRef)) return;
+      if (settleAndAdvance(activeThreadRef) !== null) return;
       void settleThread(activeThreadRef).then(
         toastThreadActionFailure(m(msg("Failed to settle thread"))),
       );
