@@ -172,10 +172,10 @@ export function useThreadActionMenu(input: {
     return { items, run: (action: ThreadActionMenuId) => runAction(action, snoozePresets) };
   };
 
-  /** Runs one action as if it were picked from the menu, rechecking permission first. */
-  const runAction = async (
+  /** Runs one picked action against the presets that menu showed, rechecking permission first. */
+  const runMenuAction = async (
     action: ThreadActionMenuId,
-    snoozePresets: ReadonlyArray<SnoozePreset> = [],
+    snoozePresets: ReadonlyArray<SnoozePreset>,
   ) => {
     if (threadRef === null) return;
     const api = readLocalApi();
