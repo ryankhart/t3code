@@ -114,13 +114,11 @@ export function OpenThreadHeader(
       canShareWithGuest,
       canTurnIntoProject,
       moveTargets,
-      ...(canArrange ? { arrange: { canMoveUp: false, canMoveDown: false } } : {}),
+      ...(canArrange ? { arrange: {} } : {}),
       canOpenProjectSettings: false,
     },
     m,
   );
-  // Moving one step only makes sense beside its neighbours in the list; the sheet works anywhere.
-  const shownItems = items.filter((item) => item.id !== "move-up" && item.id !== "move-down");
 
   const handleSelect = (event: string) => {
     if (runMenuUtility(event, thread, projectCwd)) return;
@@ -215,7 +213,7 @@ export function OpenThreadHeader(
   };
 
   const threadMenuItems = appBarMenuItemsFromActions(
-    menuActionsFromThreadMenu(shownItems, { nestAfterFirstGroup: Platform.OS === "ios" }, m),
+    menuActionsFromThreadMenu(items, { nestAfterFirstGroup: Platform.OS === "ios" }, m),
     handleSelect,
   );
   return (

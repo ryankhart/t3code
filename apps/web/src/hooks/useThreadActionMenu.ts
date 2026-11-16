@@ -70,6 +70,11 @@ function failureToast(title: string, error: unknown) {
   );
 }
 
+export type ThreadQuickAction = Extract<
+  ThreadActionMenuId,
+  "settle" | "unsettle" | "pin" | "unpin" | "unsnooze"
+>;
+
 export function useThreadActionMenu(input: {
   readonly threadRef: ScopedThreadRef | null;
   readonly projectCwd: string | null;
@@ -437,14 +442,8 @@ export function useThreadActionMenu(input: {
     void readLocalApi()?.contextMenu.close();
   };
 
-  /** Runs one action as if it were picked from the menu just now. */
-  const runAction = (action: ThreadActionMenuId) =>
-    runMenuAction(
-      action,
-      threadRef === null
-        ? []
-        : resolveSnoozePresets(new Date(), timestampFormat, threadRef.environmentId),
-    );
+  /** One click from the header's quick buttons; Snooze picks a time through `openSnoozeMenu`. */
+  const runAction = (action: ThreadQuickAction) => runMenuAction(action, []);
 
   return { openMenu, openSnoozeMenu, runAction, closeMenu };
 }
