@@ -35,6 +35,7 @@ import {
 import { LocalModelChoice } from "./VoiceModelSection";
 import { CloudVoiceChoice } from "./CloudVoiceSection";
 import { ReadAloudVoiceSection } from "../read-aloud/ReadAloudVoiceSection";
+import { AssistantSection } from "../assistant/AssistantSection";
 import type { VoiceGrant } from "../voice-input/voiceGrantStorage";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ThreadSwipeable } from "../home/thread-swipe-actions";
@@ -415,6 +416,7 @@ export function SettingsVoiceRouteScreen() {
             )?.environmentId ?? null
           }
         />
+        <AssistantSection />
       </ScrollView>
     </SettingsScreen>
   );

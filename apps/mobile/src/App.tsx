@@ -113,6 +113,8 @@ import {
 import { pruneNewTaskFlowStates } from "./features/threads/new-task-flow-state";
 import { pruneNewTaskBranchCheckouts } from "./features/threads/NewTaskDraftRouteScreen";
 import { installApkUpdateChecks } from "./features/updates/apk-updates";
+import { installAssistantLaunch } from "./features/assistant/assistantLaunch";
+import { assistantLaunchEnvironment } from "./features/assistant/assistantLaunchRuntime";
 import { installAppUpdateChecks } from "./features/updates/app-updates";
 import { perfProbe } from "./features/development/perf-probe-hooks";
 
@@ -222,6 +224,7 @@ const appServiceDisposers = [
   startIncomingShareInbox(),
   installAgentNotificationNavigation(linkToAppPath),
   installAppShortcuts(linkToAppPath),
+  installAssistantLaunch(assistantLaunchEnvironment(linkToAppPath)),
   installAppUpdateChecks(),
   installApkUpdateChecks(),
   installShowcaseCapture(rootPathnameFromState),

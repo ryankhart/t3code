@@ -17,7 +17,9 @@ import {
 } from "../../lib/microphonePriority";
 import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
 import { createVoiceRecorder } from "../../native/voiceRecorder";
+import { appAtomRegistry } from "../../state/atom-registry";
 import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
+import { getComposerDraftSnapshot, setComposerDraftText } from "../../state/use-composer-drafts";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
   voiceInputBlocksSubmission,
@@ -25,9 +27,9 @@ import {
 } from "@t3tools/client-runtime/voice-input";
 import { createLazyVoiceRecorder } from "./lazyVoiceRecorder";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
-import { VoiceInputSession } from "./voiceInputSession";
+import { createVoiceInputTarget, VoiceInputSession } from "./voiceInputSession";
 import { createVoiceRecordingPermission } from "./voiceRecordingPermission";
-import { voiceRouteAtom } from "./voiceDestination";
+import { voiceGrantLoadedAtom, voiceRouteAtom } from "./voiceDestination";
 import { makePermissionStatusAtom } from "../../lib/permissionStatusAtom";
 import {
   acquireAudioSession,
@@ -172,6 +174,55 @@ export const voiceInputAtom = Atom.make((get) => {
   });
   return { session, audioLevels };
 }).pipe(Atom.keepAlive, Atom.withLabel("mobile:voice-input"));
+
+/** Whether a finished recording is still being turned into text, for callers outside React. */
+export function isTranscribingDictation(): boolean {
+  const { phase } = appAtomRegistry.get(voiceInputAtom).session.getSnapshot().state;
+  return phase === "transcribing" || phase === "post-processing";
+}
+
+// A dictation is cancelled when its transcription route changes, and right after a launch the
+// route still changes: the saved choice loads, then its environment connects.
+const voiceRouteSettledAtom = Atom.make((get) => {
+  if (!get(voiceGrantLoadedAtom)) return false;
+  const route = get(voiceRouteAtom);
+  return route ? route.transcriber !== null : get(localVoiceTranscriberAtom) !== "checking";
+});
+
+/**
+ * Resolves once a dictation can start and stay started, or after `timeoutMs`, so a route that
+ * never settles (its environment is offline) cannot hold a start forever.
+ */
+export function dictationRouteSettled(timeoutMs: number): Promise<void> {
+  if (appAtomRegistry.get(voiceRouteSettledAtom)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      stop();
+      resolve();
+    };
+    const stop = appAtomRegistry.subscribe(voiceRouteSettledAtom, (settled) => {
+      if (settled) finish();
+    });
+    const timer = setTimeout(finish, timeoutMs);
+  });
+}
+
+/**
+ * Starts dictating into a draft without its composer, for a start that opens the draft itself.
+ * The draft's composer shows the recording once it is on screen; until then the edge pill does.
+ */
+export function dictateIntoDraft(draftKey: string, label: string): Promise<void> {
+  return appAtomRegistry.get(voiceInputAtom).session.start({
+    ...createVoiceInputTarget(
+      draftKey,
+      () => getComposerDraftSnapshot(draftKey).text,
+      (text) => setComposerDraftText(draftKey, text),
+      { start: 0, end: 0 },
+    ),
+    label,
+  });
+}
 
 export function useGlobalVoiceInput() {
   const { session, audioLevels } = useAtomValue(voiceInputAtom);

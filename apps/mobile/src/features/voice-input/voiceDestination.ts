@@ -44,6 +44,11 @@ export const voiceGrantAtom = Atom.make((get) => {
   return AsyncResult.getOrElse(get(storedGrant), () => null);
 });
 
+/** False until the saved transcription choice has been read from storage. */
+export const voiceGrantLoadedAtom = Atom.make(
+  (get) => get(choice) !== undefined || !AsyncResult.isInitial(get(storedGrant)),
+);
+
 let choiceRevision = 0;
 
 type CloudDestination = Extract<VoiceTranscriptionDestination, { kind: "cloud" }>;
