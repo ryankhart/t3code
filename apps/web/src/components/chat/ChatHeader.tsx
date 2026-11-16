@@ -250,11 +250,14 @@ export const ChatHeader = memo(function ChatHeader({
     onFind: onFindInThread,
     canShareWithGuest,
   });
-  const { openMenu: openDraftMenu } = useDraftActionMenu({
-    draftId: isServerThread ? null : (draftId ?? null),
-    projectCwd: activeProjectCwd,
-    onOpenProjectSettings,
-  });
+  const draftMenu = useDraftActionMenu();
+  const openDraftMenu = (position: { x: number; y: number }) => {
+    if (isServerThread || !draftId) return;
+    draftMenu.openMenu(draftId, position, () => ({
+      workspaceRoot: activeProjectCwd,
+      openProjectSettings: onOpenProjectSettings,
+    }));
+  };
   const openMenuFromTitle = (event: ReactMouseEvent<HTMLButtonElement>) => {
     if (isTrailingDoubleClick(event.detail)) return;
     const rect = event.currentTarget.getBoundingClientRect();

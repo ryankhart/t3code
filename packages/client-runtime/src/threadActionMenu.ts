@@ -220,6 +220,8 @@ export function buildThreadActionMenuItems(
             id: "arrange" as const,
             label: resolve(msg("Arrange threads…")),
             icon: "arrow-up-down",
+            // Keeps iOS's short top level, which nests everything after the first group.
+            separatorBefore: true,
           },
           {
             id: "move-up" as const,
