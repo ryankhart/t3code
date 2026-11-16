@@ -39,6 +39,8 @@ export type AppBarMenuItem =
       readonly title?: string;
       readonly icon?: string;
       readonly inline?: boolean;
+      /** Android greys the submenu out; iOS submenus can't be disabled, so their items carry it too. */
+      readonly disabled?: boolean;
       readonly items: ReadonlyArray<AppBarMenuItem>;
     };
 

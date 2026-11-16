@@ -396,6 +396,25 @@ function ThreadRouteContent(
   // Phone: one tap settles the open thread and goes back to the list, where Undo stays up.
   const threadListActions = useThreadListActions();
   const returnToThreadList = useWorkspaceBackNavigation();
+  // A slow settle, archive or delete can finish after the user opened another thread or left;
+  // only leave if the thread it was for is still the one on screen.
+  const openThreadKey =
+    selectedThread === null
+      ? null
+      : scopedThreadKey(selectedThread.environmentId, selectedThread.id);
+  const openThreadKeyRef = useRef<string | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tracks the thread on screen for commands that finish after a navigation
+  useEffect(() => {
+    openThreadKeyRef.current = openThreadKey;
+    return () => {
+      openThreadKeyRef.current = null;
+    };
+  }, [openThreadKey]);
+  const leaveThreadIfStillOpen = (thread: { environmentId: EnvironmentId; id: ThreadId }) => {
+    if (openThreadKeyRef.current === scopedThreadKey(thread.environmentId, thread.id)) {
+      returnToThreadList();
+    }
+  };
   const [settleBusy, setSettleBusy] = useState(false);
   const handleSettleFromHeader = async () => {
     if (selectedThread === null || settleBusy) return;
@@ -409,7 +428,7 @@ function ThreadRouteContent(
         undoDurationMs: SETTLE_FROM_THREAD_UNDO_MS,
         revealOnUndo: true,
       });
-      if (settled) returnToThreadList();
+      if (settled) leaveThreadIfStillOpen(selectedThread);
     } finally {
       setSettleBusy(false);
     }
@@ -1087,7 +1106,7 @@ function ThreadRouteContent(
               thread={selectedThread}
               projectCwd={selectedThreadProject?.workspaceRoot || null}
               actions={threadListActions}
-              onLeaveThread={returnToThreadList}
+              onLeaveThread={leaveThreadIfStillOpen}
               title={selectedThread.title}
               subtitle={threadStatusLabel ?? headerSubtitle}
               gitControls={threadGitControlProps}

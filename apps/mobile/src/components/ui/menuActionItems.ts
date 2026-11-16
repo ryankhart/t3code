@@ -13,6 +13,7 @@ export function appBarMenuItemsFromActions(
           id,
           title: action.title,
           icon: action.image,
+          disabled: action.attributes?.disabled,
           items: appBarMenuItemsFromActions(action.subactions, onSelect),
         }
       : {
@@ -41,6 +42,7 @@ export function menuActionsFromAppBarItems(items: ReadonlyArray<AppBarMenuItem>)
               title: item.title ?? "",
               image: item.icon,
               displayInline: item.inline,
+              ...(item.disabled ? { attributes: { disabled: true } } : {}),
               subactions: menuActionsFromAppBarItems(item.items),
             },
           ]

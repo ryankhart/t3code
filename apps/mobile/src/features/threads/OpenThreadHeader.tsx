@@ -48,8 +48,8 @@ export function OpenThreadHeader(
     readonly thread: EnvironmentThreadShell;
     readonly projectCwd: string | null;
     readonly actions: ReturnType<typeof useThreadListActions>;
-    /** Leaves the thread after it was archived or deleted. */
-    readonly onLeaveThread: () => void;
+    /** Leaves the thread after it was archived or deleted, if it is still on screen. */
+    readonly onLeaveThread: (thread: EnvironmentThreadShell) => void;
   },
 ) {
   const { thread, projectCwd, actions, onLeaveThread, ...headerProps } = props;
@@ -192,11 +192,11 @@ export function OpenThreadHeader(
         return;
       case "archive":
         void actions.archiveThread(thread).then((archived) => {
-          if (archived) onLeaveThread();
+          if (archived) onLeaveThread(thread);
         });
         return;
       case "delete":
-        actions.confirmDeleteThread(thread, onLeaveThread);
+        actions.confirmDeleteThread(thread, () => onLeaveThread(thread));
         return;
     }
   };
