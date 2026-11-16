@@ -57,6 +57,7 @@ import {
 import * as Haptics from "expo-haptics";
 import { KeyboardAwareLegendList } from "@legendapp/list/keyboard";
 import { useViewabilityAmount, type LegendListRef } from "@legendapp/list/react-native";
+import { KeyboardController, KeyboardEvents } from "react-native-keyboard-controller";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { HandoffEndpoints } from "@t3tools/client-runtime/handoff";
 import {
@@ -150,6 +151,7 @@ import {
   ScrollView,
   Platform,
   type LayoutChangeEvent,
+  type ViewInstance,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
@@ -279,8 +281,15 @@ import {
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import { resolveThreadFeedFixedItemSize } from "./thread-feed-item-size";
 import { htmlRenderFrameHeight } from "@t3tools/shared/htmlRender";
-import { htmlRenderRowHeight, ThreadHtmlRender } from "./HtmlRenderWebView";
+import {
+  htmlRenderLiveHeight,
+  htmlRenderRowHeight,
+  subscribeHtmlRenderLiveHeights,
+  ThreadHtmlRender,
+  type HtmlRenderFieldMeasure,
+} from "./HtmlRenderWebView";
 import { ThreadMcpApp } from "./McpAppWebView";
+import { FLOATING_WORKING_CONTROL_COVERAGE } from "./floating-working-control";
 import { assetEnvironment, useAssetUrl, useRefreshAssetUrl } from "../../state/assets";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { readEnvironmentScope, usePreparedConnection } from "../../state/session";
@@ -1999,6 +2008,11 @@ function renderFeedEntry(
     readonly onToggleWorkRow: (rowId: string, anchorKey?: string, groupId?: string) => void;
     readonly onToggleUserMessage: (rowId: string, anchorKey: string) => void;
     readonly onToggleTurnFold: (runId: RunId) => void;
+    readonly onHtmlRenderResize: (rowKey: string, previousRowHeight: number) => void;
+    readonly onHtmlRenderFieldFocus: (
+      rowKey: string,
+      measure: HtmlRenderFieldMeasure | null,
+    ) => void;
     readonly onPressPreview: (source: FilePreviewSource) => void;
     readonly onPlaybackStart: () => void;
     readonly markdownLinkHandlers: MarkdownLinkHandlers;
@@ -2117,6 +2131,8 @@ function renderFeedEntry(
         render={entry.render}
         frameWidth={props.contentWidth}
         iconColor={iconSubtleColor}
+        onResize={(previousRowHeight) => props.onHtmlRenderResize(entry.id, previousRowHeight)}
+        onFieldFocus={(measure) => props.onHtmlRenderFieldFocus(entry.id, measure)}
       />
     );
   }
@@ -3118,6 +3134,17 @@ function PerfContentMark(props: { readonly probe: PerfProbe; readonly thread: st
   return null;
 }
 
+const HTML_RENDER_FIELD_GAP = 16;
+
+// isVisible() is already true while the keyboard opens and still true while it closes; scrolling
+// mid-animation would fight the list's own keyboard scroll.
+let keyboardMoving = false;
+KeyboardEvents.addListener("keyboardWillShow", () => (keyboardMoving = true));
+KeyboardEvents.addListener("keyboardWillHide", () => (keyboardMoving = true));
+KeyboardEvents.addListener("keyboardDidShow", () => (keyboardMoving = false));
+KeyboardEvents.addListener("keyboardDidHide", () => (keyboardMoving = false));
+const keyboardSettledOpen = () => KeyboardController.isVisible() && !keyboardMoving;
+
 export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const gt = useGT();
   const m = useMessages();
@@ -3141,8 +3168,10 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   if (!focused && retainedMediaRowId !== null) setRetainedMediaRowId(null);
   const { themeAppearance } = useAppearancePreferences();
   const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fieldReveal = useRef<{ rowKey: string; cancel: () => void } | null>(null);
+  const viewportRef = useRef<ViewInstance>(null);
   const headerMaterialVisibleRef = useRef(false);
-  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions();
   const { appearance } = useAppearancePreferences();
   const workRowSizing = deriveThreadWorkLogSizing({
     baseFontSize: appearance.baseFontSize,
@@ -3753,6 +3782,18 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     () => threadFeedCompactionLabels(props.feed, m),
     [props.feed, m],
   );
+  // A page that changes height changes its row's fixed size, which LegendList only re-reads
+  // when extraData changes. Only this feed's pages count, so other threads' feeds stay put.
+  const htmlRenderAttachmentIds = useMemo(
+    () =>
+      props.feed.flatMap((entry) =>
+        entry.type === "html-render" ? [entry.render.attachmentId] : [],
+      ),
+    [props.feed],
+  );
+  const htmlRenderHeights = useSyncExternalStore(subscribeHtmlRenderLiveHeights, () =>
+    htmlRenderAttachmentIds.map((id) => htmlRenderLiveHeight(id, contentWidth) ?? "").join(","),
+  );
   // LegendList does not invalidate visible rows when only the renderItem closure changes.
   // Include turn completion so unchanged message rows reveal their footer and spacing
   // even when the final message update arrives before the turn settles.
@@ -3784,6 +3825,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     contentWidth,
     skills: props.skills,
     workflowOpening,
+    htmlRenderHeights,
   };
   const reportHeaderMaterialVisibility = (visible: boolean) => {
     if (headerMaterialVisibleRef.current === visible) {
@@ -3975,10 +4017,11 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     }
   }
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears copy feedback and disclosure animation timers and frames on unmount
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears copy feedback and disclosure animation timers and frames, and a waiting field reveal, on unmount
   useEffect(
     () => () => {
       if (copyFeedbackTimeoutRef.current) clearTimeout(copyFeedbackTimeoutRef.current);
+      fieldReveal.current?.cancel();
       if (disclosureMotionTimer.current !== null) clearTimeout(disclosureMotionTimer.current);
       if (disclosureSettleFrameRef.current !== null) {
         cancelAnimationFrame(disclosureSettleFrameRef.current);
@@ -4017,6 +4060,76 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         disclosureSettleSecondFrameRef.current = null;
       });
     });
+  };
+
+  // A page taller than the screen is never the list's anchor (it anchors the first row fully on
+  // screen), so a ballot growing under the reader's tap would slide up. Hold the page's own row
+  // while it is on screen, as a disclosure does; at the very end the list keeps the end in view.
+  const onHtmlRenderResize = (rowKey: string, previousRowHeight: number) => {
+    const list = listRef.current;
+    if (!list) return;
+    const working = props.activeWorkStartedAt !== null || props.runlessWorkActive === true;
+    if (working && list.getState().isFollowingEnd) return;
+    const anchor = list.anchorVisibleContent({ key: rowKey, hold: false });
+    if (anchor === undefined) return;
+    if (anchor.offset < previousRowHeight && anchor.offset > -list.getState().scrollLength) {
+      list.cancelScroll();
+      list.anchorVisibleContent({ key: rowKey });
+    }
+  };
+
+  // The keyboard covers the feed without resizing pages, so a note field in a ballot would sit
+  // under it. Once the keyboard is up, scroll just enough to show the field above the composer.
+  const onHtmlRenderFieldFocus = (rowKey: string, measure: HtmlRenderFieldMeasure | null) => {
+    // Only the latest focused field counts; an earlier one may be off screen by now. A blur
+    // cancels only its own page's reveal, since another page's blur can arrive after a new focus.
+    if (measure === null && fieldReveal.current?.rowKey !== rowKey) return;
+    fieldReveal.current?.cancel();
+    fieldReveal.current = null;
+    if (measure === null) return;
+    let cancelled = false;
+    const reveal = async () => {
+      const keyboardHeight = KeyboardController.state().height;
+      const list = listRef.current;
+      const viewport = viewportRef.current;
+      if (cancelled || !list || !viewport || keyboardHeight <= 0) return;
+      const field = await measure();
+      if (cancelled || field === null) return;
+      // The field's rect is in window coordinates, so the feed's edges are read the same way.
+      viewport.measureInWindow((_x, viewportTop) => {
+        if (cancelled) return;
+        // The composer rides the keyboard keyboardOffset lower than the keyboard's full height,
+        // and the round scroll buttons float just above it.
+        const covered =
+          Math.max(0, keyboardHeight - props.keyboardOffset) +
+          contentInsetEndAdjustment.get() +
+          FLOATING_WORKING_CONTROL_COVERAGE;
+        const visibleBottom = windowHeight - covered - HTML_RENDER_FIELD_GAP;
+        // A field taller than the space above the keyboard keeps its top, where typing starts, in view.
+        const room = field.top - viewportTop - anchorTopInset - HTML_RENDER_FIELD_GAP;
+        const shift = Math.min(field.bottom - visibleBottom, room);
+        if (shift <= 0) return;
+        list.scrollToOffset({ offset: list.getState().scroll + shift, animated: true });
+      });
+    };
+    if (keyboardSettledOpen()) {
+      fieldReveal.current = { rowKey, cancel: () => (cancelled = true) };
+      void reveal();
+      return;
+    }
+    // No time limit: a cold keyboard can take seconds to open. A blur, a newer focus or the
+    // feed unmounting cancels this.
+    const shown = KeyboardEvents.addListener("keyboardDidShow", () => {
+      shown.remove();
+      void reveal();
+    });
+    fieldReveal.current = {
+      rowKey,
+      cancel: () => {
+        cancelled = true;
+        shown.remove();
+      },
+    };
   };
 
   const preserveDisclosurePosition = (anchorKey: string | null) => {
@@ -4154,7 +4267,10 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         : resolveThreadFeedFixedItemSize("run-fold");
     }
     if (entry.type === "html-render") {
-      return htmlRenderRowHeight(htmlRenderFrameHeight(entry.render, contentWidth));
+      return htmlRenderRowHeight(
+        htmlRenderLiveHeight(entry.render.attachmentId, contentWidth) ??
+          htmlRenderFrameHeight(entry.render, contentWidth),
+      );
     }
     if (workRowSizing.fixedRowHeight === undefined) {
       return undefined;
@@ -4266,6 +4382,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             onToggleWorkRow,
             onToggleUserMessage,
             onToggleTurnFold,
+            onHtmlRenderResize,
+            onHtmlRenderFieldFocus,
             onPressPreview,
             onPlaybackStart: onInlinePlaybackStart,
             markdownLinkHandlers,
@@ -4320,7 +4438,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
 
   return (
     <PresentationSource identifier={fileShareSourceIdentifier} style={{ flex: 1 }}>
-      <View className="flex-1" onLayout={handleViewportLayout}>
+      <View ref={viewportRef} className="flex-1" onLayout={handleViewportLayout}>
         {/* In a split, rows only re-wrap in the render that hands the list its new width. A native
             column resize would re-wrap them first, and the list would place the taller or shorter
             rows at their old offsets until their measurements came back. */}
