@@ -9,7 +9,6 @@ import {
   endThreadContextDrag,
   moveThreadContextDrag as moveThreadContextDragGhost,
 } from "./chat/threadContextDrag";
-import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
@@ -141,6 +140,7 @@ import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { resolveThreadActionProjectRef, startNewThreadFromContext } from "../lib/chatThreadActions";
 import { useClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
+import { useDraftActionMenu } from "../hooks/useDraftActionMenu";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
 import {
@@ -179,7 +179,6 @@ import { cn } from "~/lib/utils";
 import { ProjectEnvironmentBadge } from "./ProjectEnvironmentBadge";
 import { ProjectRowActions } from "./ProjectComboboxRow";
 import {
-  buildDraftActionMenuItems,
   buildThreadActionMenuItems,
   isThreadTriageAction,
   threadActionRequiresOperate,
@@ -2619,56 +2618,28 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   );
 
+  const draftMenu = useDraftActionMenu();
   const handleDraftContextMenu = useStableCallback(
-    (draftId: DraftId, position: { x: number; y: number }, source: ContextMenuSource) => {
-      void (async () => {
-        const api = readLocalApi();
-        const session = useComposerDraftStore.getState().getDraftSession(draftId);
-        if (!api || !session || session.promotedTo) return;
+    (draftId: DraftId, position: { x: number; y: number }, source: ContextMenuSource) =>
+      draftMenu.openMenu(draftId, position, (session) => {
         const projectGroup = projectGroupsRef.current.find((group) =>
           group.memberProjectRefs.some(
             (ref) =>
               ref.environmentId === session.environmentId && ref.projectId === session.projectId,
           ),
         );
-        const workspacePath =
-          session.worktreePath ??
-          projectByKey.get(`${session.environmentId}:${session.projectId}`)?.workspaceRoot;
-        const clicked = await settlePromise(() =>
-          api.contextMenu.show(
-            buildDraftActionMenuItems({
-              hasPath: Boolean(workspacePath),
-              hasBranch: Boolean(session.branch),
-              hasProject: projectGroup != null,
-            }),
-            position,
-            source,
-          ),
-        );
-        if (clicked._tag === "Failure") return;
-        switch (clicked.value) {
-          case "project-settings":
-            if (projectGroup)
-              openProjectSettings(projectGroup, {
-                environmentId: session.environmentId,
-                projectId: session.projectId,
-              });
-            return;
-          case "copy-path":
-            if (workspacePath) copyPathToClipboard(workspacePath, { path: workspacePath });
-            return;
-          case "copy-branch":
-            if (session.branch) copyBranchToClipboard(session.branch, { branch: session.branch });
-            return;
-          case "discard": {
-            // The menu may outlive draft promotion; discarding then would strand the send.
-            const current = useComposerDraftStore.getState().getDraftSession(draftId);
-            if (current && !current.promotedTo) discardComposerDraft(draftId);
-            return;
-          }
-        }
-      })();
-    },
+        return {
+          workspaceRoot: projectByKey.get(`${session.environmentId}:${session.projectId}`)
+            ?.workspaceRoot,
+          openProjectSettings: projectGroup
+            ? () =>
+                openProjectSettings(projectGroup, {
+                  environmentId: session.environmentId,
+                  projectId: session.projectId,
+                })
+            : undefined,
+        };
+      }, source),
   );
 
   const handleThreadContextMenu = useStableCallback(

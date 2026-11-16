@@ -50,7 +50,12 @@ function menuAction(item: ContextMenuItem<string>): MenuAction {
     ...(attributes ? { attributes } : {}),
     ...(item.checked === undefined ? {} : { state: item.checked ? "on" : "off" }),
     ...(item.children && item.children.length > 0
-      ? { subactions: item.children.map(menuAction) }
+      ? {
+          // Some phone menus still open a disabled submenu, so its choices carry the state too.
+          subactions: item.children.map((child) =>
+            menuAction(item.disabled ? { ...child, disabled: true } : child),
+          ),
+        }
       : {}),
   };
 }

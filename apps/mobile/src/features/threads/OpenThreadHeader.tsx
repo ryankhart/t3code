@@ -16,8 +16,10 @@ import * as Dialog from "../../components/ui/Dialog";
 import { appBarMenuItemsFromActions } from "../../components/ui/menuActionItems";
 import { useNowAfter, useNowMinuteMs } from "../../lib/clock";
 import { uuidv4 } from "../../lib/uuid";
+import { appAtomRegistry } from "../../state/atom-registry";
 import { threadListEnvironmentsAtom } from "../../state/presentation";
 import { useEnvironmentScope } from "../../state/session";
+import { threadArrangementOpenAtom } from "../../state/thread-order";
 import type { useThreadListActions } from "../home/useThreadListActions";
 import { threadCanArchive } from "../home/threadArchive";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
@@ -31,6 +33,7 @@ import {
   turnThreadIntoProject,
   useThreadProjectActions,
 } from "./turnThreadIntoProject";
+import { useThreadListV2ShelfPreferences } from "./use-thread-list-v2-shelf-preferences";
 import { useThreadMenuUtilities } from "./use-thread-menu-utilities";
 
 // Read when a menu item is picked; the menu items themselves are built during render.
@@ -56,6 +59,7 @@ export function OpenThreadHeader(
   const { canTurnIntoProject, moveTargets } = useThreadProjectActions(thread);
   const runMenuUtility = useThreadMenuUtilities();
   const selectDetail = useSelectWorkspaceDetail();
+  const { workingShelfEnabled } = useThreadListV2ShelfPreferences();
   const [customSnoozeOpen, setCustomSnoozeOpen] = useState(false);
 
   // Snooze state, its gate and the preset times all move with the clock.
@@ -73,6 +77,12 @@ export function OpenThreadHeader(
   const now = new Date(nowMs);
   const configLoaded = listEnvironments.settlementEnvironmentIds.has(thread.environmentId);
   const presetSettings = listEnvironments.snoozePresetsByEnvironmentId.get(thread.environmentId);
+  // Same gate as the thread's list row.
+  const canArrange =
+    thread.pinnedAt != null
+      ? listEnvironments.pinReorderEnvironmentIds.has(thread.environmentId)
+      : !workingShelfEnabled &&
+        listEnvironments.activeReorderEnvironmentIds.has(thread.environmentId);
   const snoozable = canSnooze(thread, { now: now.toISOString() });
   const snoozePresets = snoozable
     ? resolveSnoozePresets(now, presetSettings ? { presets: presetSettings } : {})
@@ -100,14 +110,13 @@ export function OpenThreadHeader(
     snoozePresets,
     canTurnIntoProject,
     moveTargets,
+    ...(canArrange ? { arrange: { canMoveUp: false, canMoveDown: false } } : {}),
     canOpenProjectSettings: false,
     },
     m,
   );
-  // The header's own checkmark already settles; the menu needn't repeat it.
-  const shownItems = props.settle
-    ? items.filter((item) => item.id !== "settle" && item.id !== "unsettle")
-    : items;
+  // Moving one step only makes sense beside its neighbours in the list; the sheet works anywhere.
+  const shownItems = items.filter((item) => item.id !== "move-up" && item.id !== "move-down");
 
   const handleSelect = (event: string) => {
     if (runMenuUtility(event, thread, projectCwd)) return;
@@ -156,10 +165,14 @@ export function OpenThreadHeader(
         void actions.unpinThread(thread);
         return;
       case "settle":
-        void actions.settleThread(thread);
-        return;
       case "unsettle":
-        void actions.unsettleThread(thread);
+        // The header checkmark's path also offers Undo and returns to the list once settled.
+        if (props.settle) props.settle.onPress();
+        else if (event === "settle") void actions.settleThread(thread);
+        else void actions.unsettleThread(thread);
+        return;
+      case "arrange":
+        appAtomRegistry.set(threadArrangementOpenAtom, true);
         return;
       case "unsnooze":
         void actions.unsnoozeThread(thread);

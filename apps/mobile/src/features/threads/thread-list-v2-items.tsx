@@ -1000,7 +1000,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         branch: thread.branch ?? null,
         projectFilter: null,
         isPinned: thread.pinnedAt != null,
-        isSettled: canUnsettle,
+        // Snoozed rows are slim too, but they aren't settled.
+        isSettled: canUnsettle && !snoozedRow,
         autoSettleEnabled: thread.autoSettleDisabledAt == null,
         isSnoozed: snoozedRow,
         canSnoozeNow: swipeActions.secondary === "snooze",

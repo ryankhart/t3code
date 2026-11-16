@@ -1,5 +1,6 @@
 import {
   AuthOrchestrationOperateScope,
+  type ContextMenuSource,
   type EnvironmentId,
   type ScopedThreadRef,
   type ThreadId,
@@ -252,11 +253,19 @@ export const ChatHeader = memo(function ChatHeader({
     onFind: onFindInThread,
     canShareWithGuest,
   });
-  const { openMenu: openDraftMenu } = useDraftActionMenu({
-    draftId: isServerThread ? null : (draftId ?? null),
-    projectCwd: activeProjectCwd,
-    onOpenProjectSettings,
-  });
+  const draftMenu = useDraftActionMenu();
+  const openDraftMenu = (position: { x: number; y: number }, source?: ContextMenuSource) => {
+    if (isServerThread || !draftId) return;
+    draftMenu.openMenu(
+      draftId,
+      position,
+      () => ({
+        workspaceRoot: activeProjectCwd,
+        openProjectSettings: onOpenProjectSettings,
+      }),
+      source,
+    );
+  };
   const openMenuFromTitle = (event: ReactMouseEvent<HTMLButtonElement>) => {
     if (isTrailingDoubleClick(event.detail)) return;
     const rect = event.currentTarget.getBoundingClientRect();

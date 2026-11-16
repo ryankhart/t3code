@@ -43,13 +43,14 @@ function HeaderActionButton(props: {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 [-webkit-app-region:no-drag]"
+            className="shrink-0"
             aria-label={props.label}
             aria-pressed={props.pressed}
             aria-haspopup={props.opensMenu ? "menu" : undefined}
             data-pressed={props.pressed ? "" : undefined}
-            disabled={props.disabled}
-            onClick={props.onClick}
+            // Not `disabled`: that drops pointer events, so the tooltip saying why could never show.
+            aria-disabled={props.disabled || undefined}
+            onClick={props.disabled ? undefined : props.onClick}
           />
         }
       >
