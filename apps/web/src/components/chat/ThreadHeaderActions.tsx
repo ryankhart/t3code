@@ -13,7 +13,7 @@ import {
   PinIcon,
   type LucideIcon,
 } from "lucide-react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import { useNowAfter } from "~/hooks/useDeadline";
 import { useThreadShell } from "../../state/entities";
@@ -21,14 +21,36 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 type MenuPosition = { x: number; y: number };
+type ThreadShell = NonNullable<ReturnType<typeof useThreadShell>>;
 
 function menuPositionBelow(event: ReactMouseEvent<HTMLElement>): MenuPosition {
   const rect = event.currentTarget.getBoundingClientRect();
   return { x: rect.left, y: rect.bottom + 4 };
 }
 
+function withShortcut(label: string, shortcut: string | null) {
+  return shortcut ? `${label} (${shortcut})` : label;
+}
+
+/** Why `canSnooze` said no, in the order it checks. */
+function snoozeBlockedReason(thread: ThreadShell): string {
+  const request = thread.source?.pendingRuntimeRequest;
+  if (
+    thread.hasPendingApprovals ||
+    (request != null && request.kind !== "user_input") ||
+    thread.pendingSubagentRequest != null
+  ) {
+    return "Can't snooze while the thread is waiting on you";
+  }
+  if ((thread.pendingGuestMessageCount ?? 0) > 0) {
+    return "Can't snooze while a guest message is waiting";
+  }
+  return "Can't snooze while the thread is starting a turn";
+}
+
 function HeaderActionButton(props: {
   readonly label: string;
+  readonly tooltip?: string;
   readonly icon: LucideIcon;
   readonly pressed?: boolean;
   readonly disabled?: boolean;
@@ -56,7 +78,7 @@ function HeaderActionButton(props: {
       >
         <Icon className="size-4" />
       </TooltipTrigger>
-      <TooltipPopup side="bottom">{props.label}</TooltipPopup>
+      <TooltipPopup side="bottom">{props.tooltip ?? props.label}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -69,11 +91,15 @@ export function ThreadHeaderActions(props: {
   readonly threadRef: ScopedThreadRef;
   readonly canOperate: boolean;
   readonly configLoaded: boolean;
+  readonly settleShortcut: string | null;
+  readonly pinShortcut: string | null;
   readonly onOpenMenu: (position: MenuPosition) => void;
   readonly onOpenSnoozeMenu: (position: MenuPosition) => void;
-  readonly onRunAction: (action: ThreadActionMenuId) => void;
+  readonly onRunAction: (action: ThreadActionMenuId) => Promise<void>;
 }) {
   const thread = useThreadShell(props.threadRef);
+  // A quick second click would read the old state and undo the first.
+  const [running, setRunning] = useState(false);
   // Snoozing and its gate both change with time, so re-read the clock when each one flips.
   const snoozeEndsAt = Date.parse(thread?.snoozedUntil ?? "");
   const queuedTurnGateEndsAt = Date.parse(thread?.latestUserMessageAt ?? "");
@@ -85,8 +111,13 @@ export function ThreadHeaderActions(props: {
         : null,
     ),
   );
-  const showsQuickActions = thread !== null && props.canOperate && props.configLoaded;
+  const run = (action: ThreadActionMenuId) => {
+    if (running) return;
+    setRunning(true);
+    void props.onRunAction(action).finally(() => setRunning(false));
+  };
   const now = new Date(nowMs).toISOString();
+  const showsQuickActions = thread !== null && props.canOperate && props.configLoaded;
   const isSettled = thread?.settledOverride === "settled";
   const isPinned = thread?.pinnedAt != null;
   const isSnoozed = thread !== null && effectiveSnoozed(thread, { now });
@@ -94,23 +125,29 @@ export function ThreadHeaderActions(props: {
   return (
     <div className="flex shrink-0 items-center gap-0.5" data-thread-header-actions>
       {showsQuickActions ? (
-        <>
+        // Narrow windows keep the room for the title; ⋯ still has every action.
+        <div className="hidden items-center gap-0.5 sm:flex">
           <HeaderActionButton
             label={isSettled ? "Un-settle thread" : "Settle thread"}
+            tooltip={withShortcut(
+              isSettled ? "Un-settle thread" : "Settle thread",
+              props.settleShortcut,
+            )}
             icon={CircleCheckIcon}
             pressed={isSettled}
-            onClick={() => props.onRunAction(isSettled ? "unsettle" : "settle")}
+            onClick={() => run(isSettled ? "unsettle" : "settle")}
           />
           {isSnoozed ? (
             <HeaderActionButton
               label="Wake thread"
               icon={AlarmClockOffIcon}
               pressed
-              onClick={() => props.onRunAction("unsnooze")}
+              onClick={() => run("unsnooze")}
             />
           ) : (
             <HeaderActionButton
-              label={snoozable ? "Snooze" : "Snooze is unavailable while the thread is busy"}
+              label="Snooze"
+              tooltip={snoozable || thread === null ? "Snooze" : snoozeBlockedReason(thread)}
               icon={ClockIcon}
               opensMenu
               disabled={!snoozable}
@@ -119,11 +156,12 @@ export function ThreadHeaderActions(props: {
           )}
           <HeaderActionButton
             label={isPinned ? "Unpin thread" : "Pin thread"}
+            tooltip={withShortcut(isPinned ? "Unpin thread" : "Pin thread", props.pinShortcut)}
             icon={PinIcon}
             pressed={isPinned}
-            onClick={() => props.onRunAction(isPinned ? "unpin" : "pin")}
+            onClick={() => run(isPinned ? "unpin" : "pin")}
           />
-        </>
+        </div>
       ) : null}
       <HeaderActionButton
         label="Thread actions"
