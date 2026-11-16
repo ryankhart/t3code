@@ -964,7 +964,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   } = useSidebarLookups();
   const delegatedUnderParent = useDelegatedUnderParent();
   const router = useRouter();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile, open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
@@ -2684,6 +2684,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       const group = findProjectGroupOf(thread);
       if (!group) return;
       setProjectScopeKeys(projectScopeKeys.includes(group.projectKey) ? [] : [group.projectKey]);
+      // Picked from the thread header with the sidebar closed: show the list it just changed.
+      if (isMobile) setOpenMobile(true);
+      else if (!sidebarOpen) setSidebarOpen(true);
     },
   );
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- offers this sidebar's project filter to the thread header through a module-level registry

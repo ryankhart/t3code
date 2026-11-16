@@ -9,6 +9,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   canSnooze,
   effectiveSnoozed,
+  snoozeBlocker,
   hasQueuedTurnStart,
   hasUnseenRunFailure,
   pickSnoozePreset,
@@ -137,6 +138,13 @@ describe("effectiveSnoozed", () => {
         },
       };
       expect(canSnooze(approval, { now: NOW })).toBe(false);
+      expect(snoozeBlocker(approval, { now: NOW })).toBe("waiting-on-you");
+      expect(
+        snoozeBlocker(
+          { ...approval, source: { pendingRuntimeRequest: null }, pendingGuestMessageCount: 1 },
+          { now: NOW },
+        ),
+      ).toBe("guest-message");
       expect(effectiveSnoozed(approval, { now: NOW })).toBe(false);
     },
   );
