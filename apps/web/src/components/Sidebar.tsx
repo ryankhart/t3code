@@ -136,6 +136,7 @@ import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
+import { registerSidebarProjectFilter } from "../sidebarProjectFilter";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
 import { useClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
@@ -2558,6 +2559,40 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   );
 
+  const findProjectGroupOf = (thread: { environmentId: string; projectId: string }) =>
+    projectGroupsRef.current.find((project) =>
+      project.memberProjectRefs.some(
+        (projectRef) =>
+          projectRef.environmentId === thread.environmentId &&
+          projectRef.projectId === thread.projectId,
+      ),
+    ) ?? null;
+  const describeProjectFilter = useStableCallback(
+    (thread: { environmentId: string; projectId: string }) => {
+      const group = findProjectGroupOf(thread);
+      // An archived project is not a filter choice.
+      return group && !group.archived
+        ? { label: group.displayName, isActive: projectScopeKeys.includes(group.projectKey) }
+        : null;
+    },
+  );
+  const toggleProjectFilter = useStableCallback(
+    (thread: { environmentId: string; projectId: string }) => {
+      const group = findProjectGroupOf(thread);
+      if (!group) return;
+      setProjectScopeKeys(projectScopeKeys.includes(group.projectKey) ? [] : [group.projectKey]);
+    },
+  );
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- offers this sidebar's project filter to the thread header through a module-level registry
+  useEffect(
+    () =>
+      registerSidebarProjectFilter({
+        describe: describeProjectFilter,
+        toggle: toggleProjectFilter,
+      }),
+    [describeProjectFilter, toggleProjectFilter],
+  );
+
   const draftMenu = useDraftActionMenu();
   const handleDraftContextMenu = useStableCallback(
     (draftId: DraftId, position: { x: number; y: number }, source: ContextMenuSource) =>
@@ -2630,14 +2665,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           timestampFormat,
           thread.environmentId,
         );
-        const threadProjectGroup =
-          projectGroupsRef.current.find((project) =>
-            project.memberProjectRefs.some(
-              (projectRef) =>
-                projectRef.environmentId === thread.environmentId &&
-                projectRef.projectId === thread.projectId,
-            ),
-          ) ?? null;
+        const threadProjectGroup = findProjectGroupOf(thread);
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
             buildThreadActionMenuItems({
@@ -2646,14 +2674,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 AuthOrchestrationOperateScope,
               ),
               branch: thread.branch ?? null,
-              // An archived project is not a filter choice.
-              projectFilter:
-                threadProjectGroup && !threadProjectGroup.archived
-                  ? {
-                      label: threadProjectGroup.displayName,
-                      isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
-                    }
-                  : null,
+              projectFilter: describeProjectFilter(thread),
               isPinned,
               isSettled,
               autoSettleEnabled: thread.autoSettleDisabledAt == null,
@@ -2721,13 +2742,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         }
         switch (clicked.value) {
           case "filter-by-project":
-            if (threadProjectGroup) {
-              setProjectScopeKeys(
-                projectScopeKeys.includes(threadProjectGroup.projectKey)
-                  ? []
-                  : [threadProjectGroup.projectKey],
-              );
-            }
+            toggleProjectFilter(thread);
             return;
           case "project-settings":
             if (threadProjectGroup)
