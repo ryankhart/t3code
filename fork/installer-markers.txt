@@ -13,4 +13,4 @@ Get extensions from the Chrome Web Store
 started under No project can move to a project
 Its old folder still holds files
 data-previous-prompt
-Snooze is unavailable while the thread is busy
+Can't snooze while the thread is waiting on you
