@@ -98,8 +98,8 @@ export function ThreadHeaderActions(props: {
   readonly onRunAction: (action: ThreadActionMenuId) => Promise<void>;
 }) {
   const thread = useThreadShell(props.threadRef);
-  // A quick second click would read the old state and undo the first.
-  const [running, setRunning] = useState(false);
+  // A quick second click on one button would read the old state and undo the first.
+  const [running, setRunning] = useState<ReadonlySet<ThreadActionMenuId>>(new Set());
   // Snoozing and its gate both change with time, so re-read the clock when each one flips.
   const snoozeEndsAt = Date.parse(thread?.snoozedUntil ?? "");
   const queuedTurnGateEndsAt = Date.parse(thread?.latestUserMessageAt ?? "");
@@ -111,10 +111,16 @@ export function ThreadHeaderActions(props: {
         : null,
     ),
   );
-  const run = (action: ThreadActionMenuId) => {
-    if (running) return;
-    setRunning(true);
-    void props.onRunAction(action).finally(() => setRunning(false));
+  const run = (button: ThreadActionMenuId, action: ThreadActionMenuId) => {
+    if (running.has(button)) return;
+    setRunning((current) => new Set(current).add(button));
+    void props.onRunAction(action).finally(() =>
+      setRunning((current) => {
+        const next = new Set(current);
+        next.delete(button);
+        return next;
+      }),
+    );
   };
   const now = new Date(nowMs).toISOString();
   const showsQuickActions = thread !== null && props.canOperate && props.configLoaded;
@@ -135,14 +141,14 @@ export function ThreadHeaderActions(props: {
             )}
             icon={CircleCheckIcon}
             pressed={isSettled}
-            onClick={() => run(isSettled ? "unsettle" : "settle")}
+            onClick={() => run("settle", isSettled ? "unsettle" : "settle")}
           />
           {isSnoozed ? (
             <HeaderActionButton
               label="Wake thread"
               icon={AlarmClockOffIcon}
               pressed
-              onClick={() => run("unsnooze")}
+              onClick={() => run("unsnooze", "unsnooze")}
             />
           ) : (
             <HeaderActionButton
@@ -159,7 +165,7 @@ export function ThreadHeaderActions(props: {
             tooltip={withShortcut(isPinned ? "Unpin thread" : "Pin thread", props.pinShortcut)}
             icon={PinIcon}
             pressed={isPinned}
-            onClick={() => run(isPinned ? "unpin" : "pin")}
+            onClick={() => run("pin", isPinned ? "unpin" : "pin")}
           />
         </div>
       ) : null}
