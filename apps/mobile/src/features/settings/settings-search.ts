@@ -60,6 +60,8 @@ const SETTINGS_SEARCH_TERMS = {
     msg("hardware keyboard", { $context: "settings search keyword" }),
   ],
   SettingsVoice: [
+    "digital assistant",
+    "voice assistant",
     "read aloud",
     "speaker",
     "text to speech",
