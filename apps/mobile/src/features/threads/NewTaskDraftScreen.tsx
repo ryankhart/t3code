@@ -65,7 +65,7 @@ import {
   updateComposerDraftSettings,
   scheduleUnusedComposerAttachmentCleanup,
 } from "../../state/use-composer-drafts";
-import { useEnvironmentServerConfig, useProjects } from "../../state/entities";
+import { useEnvironmentServerConfig, useProjects, useServerConfigs } from "../../state/entities";
 import { useProjectClone } from "../../state/projectClones";
 import { projectEnvironment } from "../../state/projects";
 import { sourceControlEnvironment } from "../../state/sourceControl";
@@ -79,6 +79,7 @@ import {
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import {
   useRemoteConnections,
+  useRemoteConnectionStatus,
   useRemoteEnvironmentRuntime,
 } from "../../state/use-remote-environment-registry";
 import { useNewTaskFlow } from "./new-task-flow-provider";
@@ -87,7 +88,11 @@ import {
   useHardwareKeyboardCommand,
 } from "../keyboard/hardwareKeyboardCommands";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
-import { resolveDraftProjectSelection } from "./new-task-project-selection";
+import {
+  resolveDraftProjectSelection,
+  resolveNewTaskScratchOption,
+} from "./new-task-project-selection";
+import { startNoProjectThread } from "./startNoProjectThread";
 import {
   resolveNewTaskBranchLabel,
   resolveNewTaskWorkspaceLabel,
@@ -205,6 +210,17 @@ export function NewTaskDraftScreen(props: {
     selectedProject?.environmentId ?? null,
   );
   const environmentConnected = connectionState === "connected";
+  const { connectedEnvironments } = useRemoteConnectionStatus();
+  const serverConfigs = useServerConfigs();
+  // Same machine choice as the picker's No project row; a shared item keeps its reserved project.
+  const scratchOption =
+    flow.isScratchDraft || props.incomingShareId
+      ? null
+      : resolveNewTaskScratchOption({
+          environments: connectedEnvironments,
+          serverConfigs,
+          selectedEnvironmentId: selectedProject?.environmentId ?? null,
+        });
   const canOperate = useEnvironmentScope(
     selectedProject?.environmentId ?? null,
     AuthOrchestrationOperateScope,
@@ -775,6 +791,16 @@ export function NewTaskDraftScreen(props: {
     void KeyboardController.dismiss({ animated: true });
     navigation.navigate("NewTaskProject", { incomingShareId: props.incomingShareId });
   };
+  const startWithoutProject = () => {
+    if (isComposerInteractionLocked || scratchOption?.ready !== true) {
+      return;
+    }
+    const requestedProjectKey = flow.getSelectedProjectKey();
+    void startNoProjectThread(scratchOption.environmentId, (project) => {
+      // A project picked while the folder was being made stands.
+      if (flow.getSelectedProjectKey() === requestedProjectKey) setProject(project);
+    });
+  };
   const openContextPicker = (
     routeName: "NewTaskBranch" | "NewTaskEnvironment" | "NewTaskRepositories",
   ) => {
@@ -856,6 +882,19 @@ export function NewTaskDraftScreen(props: {
             {headingAfter}
           </Text>
         </View>
+        {scratchOption?.ready === true ? (
+          <Pressable
+            accessibilityHint="Starts this thread in a folder of its own instead of a project"
+            accessibilityRole="button"
+            disabled={isComposerInteractionLocked}
+            hitSlop={8}
+            onPress={startWithoutProject}
+            className="active:opacity-65"
+            testID="new-task-start-without-project"
+          >
+            <Text className="text-base text-foreground-muted">or start without a project</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {environmentControl}
