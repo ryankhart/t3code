@@ -70,7 +70,7 @@ type LinkedDraftRequest = {
 
 // A cold launch from a link has no projects or threads yet. Matching then would offer to clone a
 // repository the user already has.
-const shellsSettledAtom = Atom.make((get) => {
+export const shellsSettledAtom = Atom.make((get) => {
   const workspace = get(workspaceStateAtom);
   return !(
     workspace.isLoadingConnections ||
@@ -286,12 +286,12 @@ async function openProjectDraft(project: EnvironmentProject, request: LinkedDraf
   }
 }
 
-async function openScratchDraft(request: LinkedDraftRequest) {
-  const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
-  const environmentId = promptLinkScratchEnvironmentId(
-    latestThreadEnvironmentIds(appAtomRegistry.get(environmentThreadShells.threadShellsAtom)),
-    appAtomRegistry
-      .get(workspaceConnections.environmentsAtom)
+/** The connected environment a thread without a project starts on: the most recently used one. */
+export const scratchDraftEnvironmentIdAtom = Atom.make((get): EnvironmentId | null => {
+  const serverConfigs = get(environmentServerConfigsAtom);
+  return promptLinkScratchEnvironmentId(
+    latestThreadEnvironmentIds(get(environmentThreadShells.threadShellsAtom)),
+    get(workspaceConnections.environmentsAtom)
       .filter(
         (environment) =>
           availableScratchWorkspaceRoot(
@@ -301,6 +301,10 @@ async function openScratchDraft(request: LinkedDraftRequest) {
       )
       .map((environment) => environment.environmentId),
   );
+}).pipe(Atom.withLabel("mobile:scratch-draft-environment"));
+
+async function openScratchDraft(request: LinkedDraftRequest) {
+  const environmentId = appAtomRegistry.get(scratchDraftEnvironmentIdAtom);
   if (environmentId === null) {
     Dialog.alert(
       m(msg("Could not start without a project")),

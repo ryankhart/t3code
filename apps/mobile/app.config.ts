@@ -344,6 +344,8 @@ const config: ExpoConfig = {
         data: [{ scheme: "https", host: HOSTED_APP_HOST, pathPrefix: "/threads/" }],
         category: ["BROWSABLE", "DEFAULT"],
       },
+      // Lists the app under Android's "Digital assistant app"; modules/t3-assistant acts on it.
+      { action: "ASSIST", category: ["DEFAULT"] },
     ],
   },
   web: {
