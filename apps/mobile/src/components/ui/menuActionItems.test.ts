@@ -61,5 +61,17 @@ describe("appBarMenuItemsFromActions", () => {
     expect(
       menuActionsFromAppBarItems([{ id: "devices", title: "Devices", inline: true, items: [] }]),
     ).toMatchObject([{ id: "devices", title: "Devices", displayInline: true }]);
+    const disabledSubmenu = appBarMenuItemsFromActions(
+      [
+        {
+          id: "move",
+          title: "Move",
+          attributes: { disabled: true },
+          subactions: [{ id: "p1", title: "P1" }],
+        },
+      ],
+      onSelect,
+    );
+    expect(menuActionsFromAppBarItems(disabledSubmenu)[0]?.attributes).toEqual({ disabled: true });
   });
 });
