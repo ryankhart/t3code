@@ -11,3 +11,7 @@
 # Next-prompt suggestions: the fork carried a hand-merged copy of the then-open
 # upstream PR #28047. The suggestion buttons build on top of it and stay.
 b24959d579 feat: port upstream next-prompt suggestions (#28047)
+
+# Sidebar title shimmer (web): upstream PR #29383 does the same thing, with the
+# same off-screen pause and reduced-motion fallback. The phone version stays.
+ccf96b2f65 feat(web): shimmer titles while they regenerate
