@@ -309,6 +309,8 @@ jobs:
           [ "$pat" -lt 100000 ] && [ "$min" -lt 100 ] || { echo "version $VERSION doesn't fit the versionCode scheme"; exit 1; }
           export T3CODE_ANDROID_VERSION_CODE=$((maj * 10000000 + min * 100000 + pat))
           echo "versionCode $T3CODE_ANDROID_VERSION_CODE"
+          # Without this the app reports upstream's store version (e.g. 2.3.0) in Settings > About.
+          export T3CODE_MOBILE_VERSION="$VERSION"
           npx expo prebuild --clean --platform android --no-install
           cd android
           # Memory and disk every minute, so a runner that dies still shows why.
