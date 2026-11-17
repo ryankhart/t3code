@@ -109,8 +109,8 @@ import { TimelineSystemDivider } from "./TimelineSystemDivider";
 
 import { forwardWheelToTimeline } from "./timelineMinimapWheel";
 import { TimelineMinimap } from "./TimelineMinimap";
-import { PreviousPromptButton } from "./PreviousPromptButton";
-import { createPreviousPromptNavigator } from "@t3tools/shared/previousPrompt";
+import { PromptJumpButtons } from "./PromptJumpButtons";
+import { createPromptNavigator } from "@t3tools/shared/promptNavigation";
 import {
   type TimelineRowSharedState,
   type TimelineRowActivityState,
@@ -954,13 +954,18 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const [minimapHitStrip, setMinimapHitStrip] = useState({ left: 0, width: 0 });
   const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
   const [minimapAtEnd, setMinimapAtEnd] = useState(false);
-  const [previousPromptNavigator] = useState(() =>
-    createPreviousPromptNavigator<MessagesTimelineRow>({
+  const [promptNavigator] = useState(() =>
+    createPromptNavigator<MessagesTimelineRow>({
       isPrompt: (row) => row.kind === "message" && row.message.role === "user",
       keyOf: (row) => row.id,
     }),
   );
   const [canGoToPreviousPrompt, setCanGoToPreviousPrompt] = useState(false);
+  const [canGoToNextPrompt, setCanGoToNextPrompt] = useState(false);
+  const promptJumpScroll = {
+    animated: !prefersReducedMotion,
+    viewOffset: TIMELINE_MINIMAP_TARGET_OFFSET,
+  };
   const handleAnchorReady = (info: { anchorIndex: number | undefined }) => {
     if (anchorMessageId !== null && info.anchorIndex !== undefined) {
       onAnchorReady(anchorMessageId, info.anchorIndex);
@@ -992,7 +997,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const refreshMinimap = useStableCallback(() => {
     const state = listRef.current?.getState?.();
     if (restoringThreadPosition || state?.data !== rows) return;
-    setCanGoToPreviousPrompt(previousPromptNavigator.canGoBack(listRef.current));
+    setCanGoToPreviousPrompt(promptNavigator.canGoBack(listRef.current));
+    setCanGoToNextPrompt(promptNavigator.canGoForward(listRef.current));
     if (!state || minimapItems.length === 0) {
       return;
     }
@@ -1621,15 +1627,23 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 });
               }}
             />
-            {previousPromptBottom !== null && canGoToPreviousPrompt ? (
-              <PreviousPromptButton
+            {previousPromptBottom !== null && (canGoToPreviousPrompt || canGoToNextPrompt) ? (
+              <PromptJumpButtons
                 bottom={previousPromptBottom}
-                onPress={() => {
+                canGoBack={canGoToPreviousPrompt}
+                canGoForward={canGoToNextPrompt}
+                onPrevious={() => {
                   navigateTimeline();
-                  void previousPromptNavigator.goBack(listRef.current, {
-                    animated: !prefersReducedMotion,
-                    viewOffset: TIMELINE_MINIMAP_TARGET_OFFSET,
-                  });
+                  // Re-check once the jump settles: its last scroll event can predate it.
+                  void promptNavigator
+                    .goBack(listRef.current, promptJumpScroll)
+                    .then(refreshMinimap);
+                }}
+                onNext={() => {
+                  navigateTimeline();
+                  void promptNavigator
+                    .goForward(listRef.current, promptJumpScroll)
+                    .then(refreshMinimap);
                 }}
               />
             ) : null}

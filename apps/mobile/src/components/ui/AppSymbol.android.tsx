@@ -9,6 +9,7 @@ import IconApps from "@tabler/icons-react-native/IconApps";
 import IconArchive from "@tabler/icons-react-native/IconArchive";
 import IconCalendarClock from "@tabler/icons-react-native/IconCalendarClock";
 import IconArrowBackUp from "@tabler/icons-react-native/IconArrowBackUp";
+import IconArrowBarToDown from "@tabler/icons-react-native/IconArrowBarToDown";
 import IconArrowDown from "@tabler/icons-react-native/IconArrowDown";
 import IconArrowForwardUp from "@tabler/icons-react-native/IconArrowForwardUp";
 import IconArrowLeft from "@tabler/icons-react-native/IconArrowLeft";
@@ -357,6 +358,7 @@ const ANDROID_ICON_BY_MATERIAL_NAME = {
   remove: IconMinus,
   smartphone: IconDeviceMobile,
   terminal: IconTerminal2,
+  vertical_align_bottom: IconArrowBarToDown,
   visibility: IconEye,
 } satisfies Partial<Record<AndroidSymbol, Icon>>;
 
