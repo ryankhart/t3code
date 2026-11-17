@@ -193,8 +193,8 @@ import {
   FLOATING_WORKING_CONTROL_COVERAGE,
   FloatingWorkingControl,
 } from "./floating-working-control";
-import { PreviousPromptButton } from "./previous-prompt-button";
-import { createPreviousPromptNavigator } from "@t3tools/shared/previousPrompt";
+import { PromptJumpButtons } from "./prompt-jump-buttons";
+import { createPromptNavigator } from "@t3tools/shared/promptNavigation";
 import {
   connectionFloatingStatus,
   type FloatingStatusAction,
@@ -553,9 +553,9 @@ function ThreadDetailBody(
   };
   const [anchorMessageId, setAnchorMessageId] = useState<MessageId | null>(null);
   const [isAtEnd, setIsAtEnd] = useState(true);
-  // Custom build: the Previous prompt button walks the feed back one prompt per tap.
-  const [previousPromptNavigator] = useState(() =>
-    createPreviousPromptNavigator<{
+  // Custom build: the Previous and Next prompt buttons walk the feed one prompt per tap.
+  const [promptNavigator] = useState(() =>
+    createPromptNavigator<{
       readonly id: string;
       readonly type: string;
       readonly message?: { readonly role: string };
@@ -565,6 +565,7 @@ function ThreadDetailBody(
     }),
   );
   const [canGoToPreviousPrompt, setCanGoToPreviousPrompt] = useState(false);
+  const [canGoToNextPrompt, setCanGoToNextPrompt] = useState(false);
   const [sendingWithKeyboard, setSendingWithKeyboard] = useState(false);
   if (sendingWithKeyboard && !isKeyboardVisible) setSendingWithKeyboard(false);
   const hasSidebarTabBar = useSidebarWorkspaceTabs() === "picker";
@@ -1498,14 +1499,25 @@ function ThreadDetailBody(
   };
 
   const showScrollToEndButton = !props.draftMode && contentPresentationKind === "ready" && !isAtEnd;
-  const showPreviousPromptButton =
-    !props.draftMode && contentPresentationKind === "ready" && canGoToPreviousPrompt;
+  const showPromptJumpButtons =
+    !props.draftMode &&
+    contentPresentationKind === "ready" &&
+    (canGoToPreviousPrompt || canGoToNextPrompt);
+  const promptJumpScroll = { animated: !reduceMotion, viewOffset: 12 };
+  const refreshPromptJumps = () => {
+    setCanGoToPreviousPrompt(promptNavigator.canGoBack(listRef.current));
+    setCanGoToNextPrompt(promptNavigator.canGoForward(listRef.current));
+  };
+  // Each jump re-checks once it settles: its last scroll event can predate it.
   const handlePreviousPrompt = () => {
+    if (!promptNavigator.canGoBack(listRef.current)) return refreshPromptJumps();
     void Haptics.selectionAsync();
-    void previousPromptNavigator.goBack(listRef.current, {
-      animated: !reduceMotion,
-      viewOffset: 12,
-    });
+    void promptNavigator.goBack(listRef.current, promptJumpScroll).then(refreshPromptJumps);
+  };
+  const handleNextPrompt = () => {
+    if (!promptNavigator.canGoForward(listRef.current)) return refreshPromptJumps();
+    void Haptics.selectionAsync();
+    void promptNavigator.goForward(listRef.current, promptJumpScroll).then(refreshPromptJumps);
   };
   const { themeAppearance } = useAppearancePreferences();
   const isDarkMode = themeAppearance === "dark";
@@ -1632,7 +1644,7 @@ function ThreadDetailBody(
                   onHeaderMaterialVisibilityChange={props.onHeaderMaterialVisibilityChange}
                   onIsAtEndChange={(atEnd) => {
                     setIsAtEnd(atEnd);
-                    setCanGoToPreviousPrompt(previousPromptNavigator.canGoBack(listRef.current));
+                    refreshPromptJumps();
                   }}
                   skills={selectedProviderSkills}
                   onCiteAssistantText={canCiteAssistantText ? handleCiteAssistantText : undefined}
@@ -1739,7 +1751,7 @@ function ThreadDetailBody(
                     }
                     showScrollToEnd={showScrollToEndButton}
                     onScrollToEnd={handleScrollToEnd}
-                    reserveSideControls={!props.draftMode && contentPresentationKind === "ready"}
+                    reserveSideControls={showPromptJumpButtons}
                     agents={agentsSegment}
                     onOpenAgents={() => {
                       Keyboard.dismiss();
@@ -1757,11 +1769,14 @@ function ThreadDetailBody(
                       });
                     }}
                   />
-                  {showPreviousPromptButton ? (
-                    <PreviousPromptButton
+                  {showPromptJumpButtons ? (
+                    <PromptJumpButtons
                       colorScheme={isDarkMode ? "dark" : "light"}
                       lift={floatingControlLift}
-                      onPress={handlePreviousPrompt}
+                      canGoBack={canGoToPreviousPrompt}
+                      canGoForward={canGoToNextPrompt}
+                      onPrevious={handlePreviousPrompt}
+                      onNext={handleNextPrompt}
                     />
                   ) : null}
                   <ComposerPanels

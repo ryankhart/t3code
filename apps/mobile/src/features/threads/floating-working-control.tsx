@@ -37,8 +37,10 @@ const CONTROL_TIMING = {
   easing: Easing.out(Easing.cubic),
   reduceMotion: ReduceMotion.System,
 } as const;
-const CONTROL_ROW_GAP = 14;
-const CONTROL_SEPARATION = (CONTROL_ROW_GAP + CONTROL_HEIGHT) / 2;
+// Matches the row's `gap-4`, so slides land exactly centered.
+const CONTROL_ROW_GAP = 16;
+// Custom build: the "Bottom" pill's width before it has been measured.
+const BOTTOM_ESTIMATED_WIDTH = 96;
 const LABEL_ENTERING = FadeIn.duration(160).delay(80).reduceMotion(ReduceMotion.System);
 const LABEL_EXITING = FadeOut.duration(100).reduceMotion(ReduceMotion.System);
 
@@ -58,10 +60,25 @@ function settleWidth(next: number) {
 
 const CONTROL_OVERLAY_OFFSET = CONTROL_HEIGHT + CONTROL_GAP - COMPOSER_CAPSULE_INSET;
 export const FLOATING_WORKING_CONTROL_COVERAGE = CONTROL_OVERLAY_OFFSET + CONTROL_GAP;
-/** Custom build: where this row sits, for the Previous prompt button beside it. */
+/** Custom build: where this row sits, for the prompt jump buttons beside it. */
 export const FLOATING_WORKING_CONTROL_ROW_TOP = -CONTROL_OVERLAY_OFFSET;
-// Custom build: room kept free on both sides of the centered row for that button.
-const SIDE_CONTROL_RESERVE = 2 * (CONTROL_HEIGHT + CONTROL_GAP + 12);
+/** Custom build: the prompt jump buttons line up with the message box's right edge. */
+export const PROMPT_JUMP_EDGE_INSET = 12;
+export const PROMPT_JUMP_BUTTON_SIZE = 44;
+export const PROMPT_JUMP_GAP = 8;
+// Room the two jump buttons take at the right edge, plus a gap before the centered row.
+const PROMPT_JUMP_CLUSTER =
+  PROMPT_JUMP_EDGE_INSET + 2 * PROMPT_JUMP_BUTTON_SIZE + 2 * PROMPT_JUMP_GAP;
+// Just the Previous slot. Without "Bottom" the chat is at its end, where Next never shows.
+const PROMPT_JUMP_PREVIOUS_ONLY =
+  PROMPT_JUMP_EDGE_INSET + PROMPT_JUMP_BUTTON_SIZE + PROMPT_JUMP_GAP;
+/**
+ * Custom build: without native glass, the floating controls' fallback material is ~94%
+ * opaque, so chat text ghosted through. An opaque card colour underneath keeps the same
+ * look while hiding the text.
+ */
+export const FLOATING_CONTROL_UNDERLAY = "rounded-full bg-card shadow-md shadow-black/10";
+export const FLOATING_CONTROL_FALLBACK = "border border-border bg-glass-fallback";
 
 export function FloatingWorkingControl(props: {
   readonly colorScheme: "light" | "dark";
@@ -76,7 +93,7 @@ export function FloatingWorkingControl(props: {
   readonly queuedCount: number;
   readonly onOpenQueue: () => void;
   readonly lift?: SharedValue<number>;
-  /** Custom build: keep the row clear of the Previous prompt button at the right edge. */
+  /** Custom build: keep the row clear of the prompt jump buttons while they show. */
   readonly reserveSideControls?: boolean;
 }) {
   const gt = useGT();
@@ -101,10 +118,20 @@ export function FloatingWorkingControl(props: {
   const [previewWidth, setPreviewWidth] = useState(0);
   const agents = props.agents;
   const hasAgents = agents !== null;
+  const hasStatus = props.status !== null;
+  const hasCapsule = hasStatus || hasQueue || hasAgents || hasPreview;
+  const [bottomWidth, setBottomWidth] = useState(BOTTOM_ESTIMATED_WIDTH);
+  // Custom build: "Bottom" alone stays centered. With a status beside it, the pair centers
+  // in the room left of the jump buttons, so the status label keeps enough width to read.
+  const shiftForJumpButtons =
+    props.reserveSideControls === true && hasCapsule && props.showScrollToEnd;
+  const jumpButtonReserve = !props.reserveSideControls
+    ? 0
+    : shiftForJumpButtons
+      ? PROMPT_JUMP_CLUSTER
+      : 2 * PROMPT_JUMP_PREVIOUS_ONLY;
   // Only reserve the scroll button's slot while it is visible.
-  const reservedWidth =
-    (props.showScrollToEnd ? CONTROL_HEIGHT + 32 : 16) +
-    (props.reserveSideControls ? SIDE_CONTROL_RESERVE : 0);
+  const reservedWidth = (props.showScrollToEnd ? bottomWidth + 32 : 16) + jumpButtonReserve;
   const availableLabelWidth = Math.max(
     0,
     Math.min(overlayWidth, windowWidth) -
@@ -119,6 +146,20 @@ export function FloatingWorkingControl(props: {
     availableLabelWidth - (extensionStatus === null ? 0 : extensionWidth),
   );
   const separationProgress = useSharedValue(props.showScrollToEnd ? 1 : 0);
+  const separation = useSharedValue((CONTROL_ROW_GAP + BOTTOM_ESTIMATED_WIDTH) / 2);
+  const jumpShiftProgress = useSharedValue(shiftForJumpButtons ? 1 : 0);
+  const handleBottomLayout = (event: LayoutChangeEvent) => {
+    const width = event.nativeEvent.layout.width;
+    // Same sub-point settling as the labels, for both the reserve and the slide.
+    if (width <= 0 || Math.abs(width - bottomWidth) < 1) return;
+    setBottomWidth(width);
+    separation.set((CONTROL_ROW_GAP + width) / 2);
+  };
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- animates the Reanimated shift that keeps the status clear of the jump buttons
+  useEffect(() => {
+    jumpShiftProgress.set(withTiming(shiftForJumpButtons ? 1 : 0, CONTROL_TIMING));
+  }, [shiftForJumpButtons, jumpShiftProgress]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- animates the Reanimated separation value when scroll-to-end visibility changes
   useEffect(() => {
@@ -127,10 +168,13 @@ export function FloatingWorkingControl(props: {
 
   const lift = props.lift;
   const liftStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -(lift?.value ?? 0) }],
+    transform: [
+      { translateY: -(lift?.value ?? 0) },
+      { translateX: (-PROMPT_JUMP_CLUSTER / 2) * jumpShiftProgress.value },
+    ],
   }));
   const arrowTransformStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -CONTROL_SEPARATION * (1 - separationProgress.value) }],
+    transform: [{ translateX: -separation.value * (1 - separationProgress.value) }],
   }));
   const arrowContentStyle = useAnimatedStyle(() => ({
     opacity: separationProgress.value,
@@ -148,8 +192,6 @@ export function FloatingWorkingControl(props: {
     measuredWidthRef.current = width;
     capsuleWidth.set(first ? width : withTiming(width, CONTROL_TIMING));
   };
-  const hasStatus = props.status !== null;
-  const hasCapsule = hasStatus || hasQueue || hasAgents || hasPreview;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears the Reanimated capsule width value and measured width when the status goes away
   useEffect(() => {
     if (!hasStatus) {
@@ -158,7 +200,7 @@ export function FloatingWorkingControl(props: {
     }
   }, [capsuleWidth, hasStatus]);
   const capsuleStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: CONTROL_SEPARATION * (1 - separationProgress.value) }],
+    transform: [{ translateX: separation.value * (1 - separationProgress.value) }],
   }));
   const capsuleSizerStyle = useAnimatedStyle(() => ({
     width: capsuleWidth.value ?? 0,
@@ -339,8 +381,9 @@ export function FloatingWorkingControl(props: {
             pointerEvents={props.showScrollToEnd ? "auto" : "none"}
             accessibilityElementsHidden={!props.showScrollToEnd}
             importantForAccessibility={props.showScrollToEnd ? "auto" : "no-hide-descendants"}
-            className="h-11 w-11 items-center justify-center overflow-hidden rounded-full"
+            className="h-11 items-center justify-center overflow-hidden rounded-full"
             style={arrowTransformStyle}
+            onLayout={handleBottomLayout}
           >
             <Animated.View style={arrowContentStyle}>
               <ScrollToEndButton disabled={!props.showScrollToEnd} onPress={props.onScrollToEnd} />
@@ -351,9 +394,10 @@ export function FloatingWorkingControl(props: {
         <View pointerEvents="box-none" className="flex-row items-center gap-4">
           <Animated.View
             pointerEvents={capsuleInteractive ? "box-none" : "none"}
-            className="h-11 items-center justify-center overflow-hidden rounded-full border border-border bg-glass-fallback shadow-md shadow-black/10"
+            className="h-11 items-center justify-center overflow-hidden rounded-full border border-border bg-card shadow-md shadow-black/10"
             style={capsuleStyle}
           >
+            <View pointerEvents="none" className="absolute inset-0 bg-glass-fallback" />
             {capsuleContent}
           </Animated.View>
 
@@ -362,15 +406,16 @@ export function FloatingWorkingControl(props: {
             accessibilityElementsHidden={!props.showScrollToEnd}
             importantForAccessibility={props.showScrollToEnd ? "auto" : "no-hide-descendants"}
             style={[arrowTransformStyle, arrowContentStyle]}
+            onLayout={handleBottomLayout}
           >
-            <ControlPill
-              accessibilityLabel={gt("Scroll to end")}
-              activateOnPressIn
-              className="h-11 w-11 border border-border bg-glass-fallback shadow-md shadow-black/10"
-              disabled={!props.showScrollToEnd}
-              icon={{ ios: "chevron.down", android: "keyboard_arrow_down" }}
-              onPress={props.onScrollToEnd}
-            />
+            <View className={FLOATING_CONTROL_UNDERLAY}>
+              <ControlPill
+                {...BOTTOM_PILL}
+                className={`${BOTTOM_PILL_CLASS} ${FLOATING_CONTROL_FALLBACK}`}
+                disabled={!props.showScrollToEnd}
+                onPress={props.onScrollToEnd}
+              />
+            </View>
           </Animated.View>
         </View>
       ) : NATIVE_LIQUID_GLASS_SUPPORTED ? (
@@ -378,18 +423,19 @@ export function FloatingWorkingControl(props: {
           colorScheme={props.colorScheme}
           glassEffectStyle="regular"
           isInteractive
-          className="h-11 w-11 items-center justify-center overflow-hidden rounded-full"
+          className="h-11 items-center justify-center overflow-hidden rounded-full"
+          onLayout={handleBottomLayout}
         >
           <ScrollToEndButton onPress={props.onScrollToEnd} />
         </UniwindGlassView>
       ) : (
-        <ControlPill
-          accessibilityLabel={gt("Scroll to end")}
-          activateOnPressIn
-          className="h-11 w-11 border border-border bg-glass-fallback shadow-md shadow-black/10"
-          icon={{ ios: "chevron.down", android: "keyboard_arrow_down" }}
-          onPress={props.onScrollToEnd}
-        />
+        <View className={FLOATING_CONTROL_UNDERLAY} onLayout={handleBottomLayout}>
+          <ControlPill
+            {...BOTTOM_PILL}
+            className={`${BOTTOM_PILL_CLASS} ${FLOATING_CONTROL_FALLBACK}`}
+            onPress={props.onScrollToEnd}
+          />
+        </View>
       )}
     </Animated.View>
   );
@@ -559,15 +605,22 @@ function StatusLabelRow(props: {
   );
 }
 
+// Custom build: a labelled "Bottom" pill, so it reads apart from the "Next prompt" arrow.
+const BOTTOM_PILL = {
+  accessibilityLabel: "Scroll to bottom",
+  activateOnPressIn: true,
+  icon: { ios: "arrow.down.to.line", android: "vertical_align_bottom" },
+  label: "Bottom",
+  variant: "pill",
+} as const;
+const BOTTOM_PILL_CLASS = "h-11 pl-3.5 pr-4";
+
 function ScrollToEndButton(props: { readonly disabled?: boolean; readonly onPress: () => void }) {
-  const gt = useGT();
   return (
     <ControlPill
-      accessibilityLabel={gt("Scroll to end")}
-      activateOnPressIn
-      className="h-11 w-11 bg-transparent"
+      {...BOTTOM_PILL}
+      className={`${BOTTOM_PILL_CLASS} bg-transparent`}
       disabled={props.disabled}
-      icon={{ ios: "chevron.down", android: "keyboard_arrow_down" }}
       onPress={props.onPress}
     />
   );

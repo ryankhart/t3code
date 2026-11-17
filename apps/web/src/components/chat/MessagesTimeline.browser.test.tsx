@@ -2900,8 +2900,8 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
 });
 
 // Custom build: the Previous prompt button.
-describe("MessagesTimeline previous prompt button", () => {
-  it("walks back one prompt per press, starting with the last prompt", async () => {
+describe("MessagesTimeline prompt jump buttons", () => {
+  it("walks back and forward one prompt per press", async () => {
     setup();
     const props = baseProps();
     const longAnswer = (index: number) =>
@@ -2912,11 +2912,19 @@ describe("MessagesTimeline previous prompt button", () => {
     ]).flat();
     await using screen = await renderTimeline(entries, { ...props, previousPromptBottom: 8 });
     const viewport = props.listRef.current!.getScrollableNode()!;
+    // Hidden buttons keep their slot, so look at what a reader can see and click.
+    const shown = (name: string) =>
+      screen.buttons(name).filter((button) => getComputedStyle(button).visibility !== "hidden");
     await vi.waitFor(() => {
       expect(viewport.scrollTop).toBeGreaterThan(0);
       expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
-      expect(screen.buttons("Previous prompt")).toHaveLength(1);
+      expect(shown("Previous prompt")).toHaveLength(1);
+      expect(shown("Next prompt")).toHaveLength(0);
     });
+    const slotLeft = () => screen.button("Previous prompt").getBoundingClientRect().left;
+    const previousLeft = slotLeft();
+    const nextLeft = screen.button("Next prompt").getBoundingClientRect().left;
+    expect(nextLeft).toBeLessThan(previousLeft);
     const promptOffset = (index: number) => {
       const prompt = [...screen.container.querySelectorAll<HTMLElement>("*")].find(
         (element) => element.childElementCount === 0 && element.textContent === `Question ${index}`,
@@ -2925,6 +2933,7 @@ describe("MessagesTimeline previous prompt button", () => {
       return prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
     };
     // Lands with the prompt just under the top edge, once the animated scroll stops.
+    let phase = "back";
     const expectPromptAtTop = async (index: number) => {
       let previousScroll = Number.NaN;
       await vi.waitFor(
@@ -2936,22 +2945,115 @@ describe("MessagesTimeline previous prompt button", () => {
           const offset = promptOffset(index);
           expect(offset).not.toBeNull();
           expect(offset!).toBeGreaterThanOrEqual(0);
-          expect(offset!).toBeLessThan(80);
+          expect(
+            offset!,
+            `${phase} prompt ${index} scroll ${scroll} max ${viewport.scrollHeight - viewport.clientHeight}`,
+          ).toBeLessThan(80);
         },
         { timeout: 4000, interval: 100 },
       );
     };
 
     for (const index of [3, 2, 1, 0]) {
-      await click(screen.button("Previous prompt"));
+      await click(shown("Previous prompt")[0]!);
       await expectPromptAtTop(index);
     }
-    await vi.waitFor(() => expect(screen.buttons("Previous prompt")).toHaveLength(0));
+    await vi.waitFor(() => expect(shown("Previous prompt")).toHaveLength(0));
+    // Neither button moved when the other appeared or hid.
+    expect(slotLeft()).toBe(previousLeft);
+    expect(screen.button("Next prompt").getBoundingClientRect().left).toBe(nextLeft);
 
-    // Scrolling elsewhere starts over from the reply being read.
-    viewport.scrollTop = viewport.scrollHeight;
-    await vi.waitFor(() => expect(screen.buttons("Previous prompt")).toHaveLength(1));
-    await click(screen.button("Previous prompt"));
-    await expectPromptAtTop(3);
+    phase = "forward";
+    for (const index of [1, 2, 3]) {
+      await click(shown("Next prompt")[0]!);
+      await expectPromptAtTop(index);
+    }
+
+    phase = "restart";
+    // Scrolling elsewhere starts over from the reply being read: here, back up into the
+    // third answer. Next showing again proves the list has caught up with the scroll.
+    viewport.scrollTop -= 300;
+    await vi.waitFor(() => {
+      expect(shown("Previous prompt")).toHaveLength(1);
+      expect(shown("Next prompt")).toHaveLength(1);
+    });
+    await click(shown("Previous prompt")[0]!);
+    await expectPromptAtTop(2);
+  });
+
+  it("goes to the very top once no earlier prompt is loaded", async () => {
+    setup();
+    const props = baseProps();
+    const longAnswer = (index: number) =>
+      Array.from({ length: 40 }, (_, line) => `Answer ${index} paragraph ${line}.`).join("\n\n");
+    // The loaded part starts partway through an agent run, above its only prompt.
+    const entries = [
+      message(longAnswer(0), { role: "assistant" }, "assistant-0"),
+      message("Question 1", {}, "user-1"),
+      message(longAnswer(1), { role: "assistant" }, "assistant-1"),
+    ];
+    await using screen = await renderTimeline(entries, { ...props, previousPromptBottom: 8 });
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    const shown = (name: string) =>
+      screen.buttons(name).filter((button) => getComputedStyle(button).visibility !== "hidden");
+    await vi.waitFor(() => {
+      expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
+      expect(shown("Previous prompt")).toHaveLength(1);
+    });
+    await click(shown("Previous prompt")[0]!);
+    await vi.waitFor(
+      () => {
+        const prompt = [...screen.container.querySelectorAll<HTMLElement>("*")].find(
+          (element) => element.childElementCount === 0 && element.textContent === "Question 1",
+        );
+        const offset = prompt!.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+        expect(offset).toBeGreaterThanOrEqual(0);
+        expect(offset).toBeLessThan(80);
+        expect(shown("Previous prompt")).toHaveLength(1);
+      },
+      { timeout: 4000, interval: 100 },
+    );
+    await click(shown("Previous prompt")[0]!);
+    await vi.waitFor(
+      () => {
+        expect(viewport.scrollTop).toBe(0);
+        expect(shown("Previous prompt")).toHaveLength(0);
+      },
+      { timeout: 4000, interval: 100 },
+    );
+  });
+
+  it("hides Next once a jump ends at the bottom", async () => {
+    setup();
+    const props = baseProps();
+    const longAnswer = (index: number) =>
+      Array.from({ length: 40 }, (_, line) => `Answer ${index} paragraph ${line}.`).join("\n\n");
+    // The last two turns are short, so a jump to the first of them stops at the bottom.
+    const entries = [
+      message("Question 0", {}, "user-0"),
+      message(longAnswer(0), { role: "assistant" }, "assistant-0"),
+      message("Question 1", {}, "user-1"),
+      message("Short answer 1.", { role: "assistant" }, "assistant-1"),
+      message("Question 2", {}, "user-2"),
+      message("Short answer 2.", { role: "assistant" }, "assistant-2"),
+    ];
+    await using screen = await renderTimeline(entries, { ...props, previousPromptBottom: 8 });
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    const shown = (name: string) =>
+      screen.buttons(name).filter((button) => getComputedStyle(button).visibility !== "hidden");
+    await vi.waitFor(() => expect(shown("Previous prompt")).toHaveLength(1));
+    viewport.scrollTop = 0;
+    await vi.waitFor(() => {
+      expect(shown("Previous prompt")).toHaveLength(0);
+      expect(shown("Next prompt")).toHaveLength(1);
+    });
+    await click(shown("Next prompt")[0]!);
+    await vi.waitFor(
+      () => {
+        expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
+        expect(shown("Next prompt")).toHaveLength(0);
+      },
+      { timeout: 4000, interval: 100 },
+    );
   });
 });
