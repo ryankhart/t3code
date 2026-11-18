@@ -140,8 +140,8 @@ export function useThreadActionMenu(input: {
       items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
     ) => ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
   ) => {
-    if (threadRef === null) return;
-    void (async () => {
+    if (threadRef === null) return undefined;
+    return (async () => {
       const api = readLocalApi();
       if (!api) return;
       const thread = readThreadShell(threadRef);

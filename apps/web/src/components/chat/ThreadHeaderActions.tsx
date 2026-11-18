@@ -16,6 +16,7 @@ import {
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import { useNowAfter } from "~/hooks/useDeadline";
+import { useMenuButtonToggle } from "~/hooks/useMenuButtonToggle";
 import type { ThreadQuickAction } from "~/hooks/useThreadActionMenu";
 import { useThreadShell } from "../../state/entities";
 import { cn } from "~/lib/utils";
@@ -23,6 +24,8 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 type MenuPosition = { x: number; y: number };
+/** Settles once the menu closes, so its button can tell a closing press from an opening one. */
+type OpenMenu = (position: MenuPosition) => Promise<void> | undefined;
 
 function menuPositionBelow(event: ReactMouseEvent<HTMLElement>): MenuPosition {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -47,10 +50,17 @@ function HeaderActionButton(props: {
   readonly pressedIconClassName?: string;
   readonly pressed?: boolean;
   readonly disabled?: boolean;
-  readonly opensMenu?: boolean;
-  readonly onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+  readonly action: { readonly onClick: () => void } | { readonly onOpenMenu: OpenMenu };
 }) {
   const Icon = props.icon;
+  const menuToggle = useMenuButtonToggle();
+  const { action } = props;
+  const opensMenu = "onOpenMenu" in action;
+  const onClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (!opensMenu) return action.onClick();
+    const position = menuPositionBelow(event);
+    menuToggle.onClick(event, () => action.onOpenMenu(position));
+  };
   return (
     <Tooltip>
       <TooltipTrigger
@@ -61,11 +71,12 @@ function HeaderActionButton(props: {
             className="shrink-0"
             aria-label={props.label}
             aria-pressed={props.pressed}
-            aria-haspopup={props.opensMenu ? "menu" : undefined}
+            aria-haspopup={opensMenu ? "menu" : undefined}
             data-pressed={props.pressed ? "" : undefined}
             // Not `disabled`: that drops pointer events, so the tooltip saying why could never show.
             aria-disabled={props.disabled || undefined}
-            onClick={props.disabled ? undefined : props.onClick}
+            onPointerDown={opensMenu && !props.disabled ? menuToggle.onPointerDown : undefined}
+            onClick={props.disabled ? undefined : onClick}
           />
         }
       >
@@ -91,8 +102,8 @@ export function ThreadHeaderActions(props: {
   readonly configLoaded: boolean;
   readonly settleShortcut: string | null;
   readonly pinShortcut: string | null;
-  readonly onOpenMenu: (position: MenuPosition) => void;
-  readonly onOpenSnoozeMenu: (position: MenuPosition) => void;
+  readonly onOpenMenu: OpenMenu;
+  readonly onOpenSnoozeMenu: OpenMenu;
   readonly onRunAction: (action: ThreadQuickAction) => Promise<void>;
 }) {
   const thread = useThreadShell(props.threadRef);
@@ -142,23 +153,22 @@ export function ThreadHeaderActions(props: {
             // A solid disc with the check cut out, like the phone's filled checkmark.
             pressedIconClassName="[&_circle]:fill-current [&_path]:stroke-background"
             pressed={isSettled}
-            onClick={() => run("settle", isSettled ? "unsettle" : "settle")}
+            action={{ onClick: () => run("settle", isSettled ? "unsettle" : "settle") }}
           />
           {isSnoozed ? (
             <HeaderActionButton
               label={gt("Wake thread")}
               icon={AlarmClockOffIcon}
               pressed
-              onClick={() => run("unsnooze", "unsnooze")}
+              action={{ onClick: () => run("unsnooze", "unsnooze") }}
             />
           ) : (
             <HeaderActionButton
               label={gt("Snooze")}
               tooltip={blocker === null ? gt("Snooze") : SNOOZE_BLOCKED_LABEL[blocker](gt)}
               icon={ClockIcon}
-              opensMenu
               disabled={blocker !== null}
-              onClick={(event) => props.onOpenSnoozeMenu(menuPositionBelow(event))}
+              action={{ onOpenMenu: props.onOpenSnoozeMenu }}
             />
           )}
           <HeaderActionButton
@@ -170,15 +180,14 @@ export function ThreadHeaderActions(props: {
             icon={PinIcon}
             pressedIconClassName="fill-current"
             pressed={isPinned}
-            onClick={() => run("pin", isPinned ? "unpin" : "pin")}
+            action={{ onClick: () => run("pin", isPinned ? "unpin" : "pin") }}
           />
         </div>
       ) : null}
       <HeaderActionButton
         label={gt("Thread actions")}
         icon={EllipsisIcon}
-        opensMenu
-        onClick={(event) => props.onOpenMenu(menuPositionBelow(event))}
+        action={{ onOpenMenu: props.onOpenMenu }}
       />
       <HeaderGroupDivider />
     </div>
@@ -186,17 +195,14 @@ export function ThreadHeaderActions(props: {
 }
 
 /** ⋯ for a thread that hasn't been sent yet: the same choices its sidebar row offers. */
-export function DraftHeaderActions(props: {
-  readonly onOpenMenu: (position: MenuPosition) => void;
-}) {
+export function DraftHeaderActions(props: { readonly onOpenMenu: OpenMenu }) {
   const gt = useGT();
   return (
     <div className="flex shrink-0 items-center" data-thread-header-actions>
       <HeaderActionButton
         label={gt("Draft actions")}
         icon={EllipsisIcon}
-        opensMenu
-        onClick={(event) => props.onOpenMenu(menuPositionBelow(event))}
+        action={{ onOpenMenu: props.onOpenMenu }}
       />
       <HeaderGroupDivider />
     </div>
