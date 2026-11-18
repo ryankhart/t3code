@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { TALK_MODE_INSTRUCTION } from "@t3tools/shared/composerContextReferences";
+
 import { threadTitleTextFromPrompt } from "./threadTitle.ts";
 
 describe("threadTitleTextFromPrompt", () => {
@@ -10,5 +12,11 @@ describe("threadTitleTextFromPrompt", () => {
     expect(
       threadTitleTextFromPrompt("model:opencode/anthropic/opus, then model:codex/gpt-5.4."),
     ).toBe("anthropic/opus, then gpt-5.4.");
+  });
+
+  it("titles a talk mode message by what was said", () => {
+    expect(threadTitleTextFromPrompt(`${TALK_MODE_INSTRUCTION}What is two plus two?`)).toBe(
+      "What is two plus two?",
+    );
   });
 });

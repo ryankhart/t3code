@@ -13,6 +13,7 @@ import {
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
+import { TALK_MODE_INSTRUCTION } from "@t3tools/shared/composerContextReferences";
 import { AtomRegistry } from "effect/reactivity";
 import * as RpcClientError from "effect/rpc/RpcClientError";
 import * as Socket from "effect/socket/Socket";
@@ -87,6 +88,8 @@ import {
   type QueuedThreadMessage,
 } from "./thread-outbox-model";
 import { createThreadOutboxManager, ThreadOutboxManagerError } from "./thread-outbox-manager";
+import { appAtomRegistry } from "./atom-registry";
+import { armTalkModeNote, enqueueThreadOutboxMessage, threadOutboxManager } from "./thread-outbox";
 import {
   expoThreadOutboxStorage,
   ThreadOutboxStorageError,
@@ -554,6 +557,39 @@ describe("thread outbox", () => {
     await manager.remove(message);
     expect(registry.get(manager.queuedMessagesByThreadKeyAtom)).toEqual({});
     registry.dispose();
+  });
+
+  it("adds talk mode's note only to the next message it matches", async () => {
+    const queued: Array<{ messageId: string; saved: Promise<void> }> = [];
+    armTalkModeNote({
+      threadId: "thread-1",
+      text: "Is it done?",
+      onQueued: (messageId, saved) => void queued.push({ messageId, saved }),
+    });
+    const asked = (messageId: string, threadId: string, text: string) => ({
+      ...queuedMessage({ messageId, threadId, createdAt: "2026-06-08T10:00:01.000Z" }),
+      text,
+    });
+    for (const message of [
+      asked("m1", "thread-2", "Is it done?"),
+      asked("m2", "thread-1", " Is it done? "),
+      asked("m3", "thread-1", "Is it done?"),
+    ]) {
+      await enqueueThreadOutboxMessage(message);
+    }
+
+    expect(queued.map((entry) => entry.messageId)).toEqual(["m2"]);
+    await expect(queued[0]!.saved).resolves.toBeUndefined();
+    const texts = Object.fromEntries(
+      Object.values(appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom))
+        .flat()
+        .map((message) => [message.messageId, message.text]),
+    );
+    expect(texts).toEqual({
+      m1: "Is it done?",
+      m2: `${TALK_MODE_INSTRUCTION} Is it done? `,
+      m3: "Is it done?",
+    });
   });
 
   it("publishes an enqueued message before the durable write resolves", async () => {

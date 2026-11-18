@@ -1,6 +1,9 @@
 import { ComposerContextId } from "@t3tools/contracts";
 import { formatAssistantCitationHref } from "@t3tools/shared/assistantCitations";
-import { formatComposerContextReference } from "@t3tools/shared/composerContextReferences";
+import {
+  formatComposerContextReference,
+  TALK_MODE_INSTRUCTION,
+} from "@t3tools/shared/composerContextReferences";
 import { describe, expect, it } from "vite-plus/test";
 
 import { resolveThreadQueueRowControls } from "./threadQueueControlPresentation";
@@ -74,6 +77,14 @@ describe("threadQueueControlPresentation", () => {
         text: `Check ${environment} for ${file} ${image} `,
       }).displayText,
     ).toBe("Check MacBook for report.pdf screenshot.png");
+    expect(
+      resolveThreadQueueRowControls({
+        busy: false,
+        canPromoteToSteer: true,
+        canSendNow: false,
+        text: `${TALK_MODE_INSTRUCTION}What is two plus two?`,
+      }).displayText,
+    ).toBe("What is two plus two?");
   });
 
   it("keeps the row already open in the composer from being reopened or steered", () => {

@@ -1,7 +1,10 @@
 import { EnvironmentId, MessageId, ThreadId } from "@t3tools/contracts";
 import { expect, it } from "vite-plus/test";
 import { serializeAssistantCitation } from "./assistantCitations.ts";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "./composerContextReferences.ts";
+import {
+  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  TALK_MODE_INSTRUCTION,
+} from "./composerContextReferences.ts";
 import { searchableMessageSegments, searchablePlanSegments } from "./threadFindText.ts";
 
 it("excludes review attachments rendered as context chips", () => {
@@ -27,6 +30,13 @@ it("indexes single tildes in user paths as typed", () => {
   expect(
     searchableMessageSegments({ role: "user", text: "Drop ~~old~~", streaming: false })?.join(""),
   ).toBe("Drop old");
+  expect(
+    searchableMessageSegments({
+      role: "user",
+      text: `${TALK_MODE_INSTRUCTION}${text}`,
+      streaming: false,
+    })?.join(""),
+  ).toBe(text);
 });
 
 it("excludes structured context chips without joining text across them", () => {

@@ -1,6 +1,9 @@
 import type { ChatAttachment } from "@t3tools/contracts";
 import { assistantCitationsToPlainText } from "@t3tools/shared/assistantCitations";
-import { replaceComposerContextReferences } from "@t3tools/shared/composerContextReferences";
+import {
+  replaceComposerContextReferences,
+  stripTalkModeInstruction,
+} from "@t3tools/shared/composerContextReferences";
 import { truncate } from "@t3tools/shared/String";
 
 import { collectComposerModelMentions } from "../composerModelMentions.ts";
@@ -27,7 +30,7 @@ function modelMentionsAsSlugs(value: string): string {
 
 export function threadTitleTextFromPrompt(value: string): string {
   const imageIds = new Set<string>();
-  const prose = replaceComposerContextReferences(value, (reference) => {
+  const prose = replaceComposerContextReferences(stripTalkModeInstruction(value), (reference) => {
     if (reference.kind === "image") {
       imageIds.add(reference.contextId);
       return "";

@@ -21,6 +21,7 @@ import {
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   type EnvironmentId,
 } from "@t3tools/contracts";
+import { stripTalkModeInstruction } from "@t3tools/shared/composerContextReferences";
 import { buildTemporaryWorktreeBranchName } from "@t3tools/shared/git";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -356,7 +357,7 @@ export async function recoverEditedCreationAfterDelivery(
   try {
     // Merge before removal to retain file ownership; allow overflow and let send guards require trimming.
     await mergeComposerDraftContent(draftKey, {
-      text: kept.text,
+      text: stripTalkModeInstruction(kept.text),
       context: kept.context,
       attachments: [],
     });
@@ -445,7 +446,7 @@ export async function restoreRejectedQueuedMessage(
     try {
       stampRecoveryDraftProject(queuedMessage, draftKey);
       await mergeComposerDraftContent(draftKey, {
-        text: queuedMessage.text,
+        text: stripTalkModeInstruction(queuedMessage.text),
         context: queuedMessage.context,
         attachments: queuedMessage.attachments,
       });

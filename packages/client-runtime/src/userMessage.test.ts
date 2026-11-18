@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { ComposerContextId, GuestMessageId, ScheduledTaskId } from "@t3tools/contracts";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
+import {
+  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  TALK_MODE_INSTRUCTION,
+} from "@t3tools/shared/composerContextReferences";
 
 import {
   resolveUserMessageFileCards,
@@ -181,6 +184,12 @@ describe("resolveUserMessagePresentation", () => {
         scheduledTaskId: undefined,
       });
     }
+  });
+
+  it("shows what was said in talk mode, not the note to the agent", () => {
+    expect(
+      resolveUserMessagePresentation({ role: "user", text: `${TALK_MODE_INSTRUCTION}Is it done?` }),
+    ).toMatchObject({ text: "Is it done?", attribution: null });
   });
 
   it("shows a guest's own words and name, not the attributed text the agent reads", () => {

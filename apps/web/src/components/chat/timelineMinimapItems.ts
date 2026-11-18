@@ -1,5 +1,8 @@
 import { parseThreadLinkHref } from "@t3tools/shared/threadLinks";
-import { isAttachmentOnlyBootstrapPrompt } from "@t3tools/shared/composerContextReferences";
+import {
+  isAttachmentOnlyBootstrapPrompt,
+  stripTalkModeInstruction,
+} from "@t3tools/shared/composerContextReferences";
 import type { Nodes } from "mdast";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
@@ -27,7 +30,9 @@ export function deriveTimelineMinimapItems(
     items.push({
       id: row.id,
       rowIndex: index,
-      userText: isAttachmentOnlyBootstrapPrompt(row.message.text) ? "" : row.message.text,
+      userText: isAttachmentOnlyBootstrapPrompt(row.message.text)
+        ? ""
+        : stripTalkModeInstruction(row.message.text),
       assistantText: resolveFinalAssistantTextForTurn(rows, index),
     });
   }
