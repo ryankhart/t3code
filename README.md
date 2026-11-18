@@ -1,7 +1,7 @@
 <h1 align="center">T3 Code (ryankhart's fork)</h1>
 
 <p align="center">
-  A desktop app for Claude Code, Codex and other coding agents. This fork adds next-prompt buttons, ballots, read-aloud replies and a tidier sidebar on top of T3 Code and MT Code.
+  A desktop app for Claude Code, Codex and other coding agents. This fork adds next-prompt buttons, ballots, prompt-to-prompt jumps, read-aloud replies and a tidier sidebar on top of T3 Code and MT Code.
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./.github/readme/fork/hero-dark.png">
     <source media="(prefers-color-scheme: light)" srcset="./.github/readme/fork/hero-light.png">
-    <img alt="T3 Code with a finished agent run, next-prompt buttons above the message box, and the Working, Snoozed and Settled shelves docked at the bottom of the sidebar" src="./.github/readme/fork/hero-dark.png" width="900">
+    <img alt="T3 Code with a finished agent run, next-prompt buttons above the message box, Settle, Snooze and Pin buttons in the thread header, and the Working, Snoozed and Settled shelves in a card at the bottom of the sidebar" src="./.github/readme/fork/hero-dark.png" width="900">
   </picture>
 </p>
 
@@ -67,6 +67,28 @@ When an agent shows you choices as an inline page, its **Done** button drops you
 
 For agent authors: an `html_render` page calls `t3Compose(text)`, which only adds text, only after a real click, and only to the thread the page is in.
 
+### Jump between your prompts
+
+Two round arrow buttons sit at the right edge of a chat, level with **Scroll to end**. **↑ Previous prompt** first goes back to the message that started the reply you're reading, then one message earlier per click. **↓ Next prompt** goes one message later. Long replies no longer mean scrolling to find where you were.
+
+<p align="center">
+  <img alt="Clicking the up arrow scrolls back through a chat one prompt at a time, then the down arrow walks forward again" src="./.github/readme/fork/prompt-jump.gif" width="759">
+</p>
+
+Above the first loaded prompt, ↑ goes to the very top, where **Load earlier turns** appears when there's more history. ↑ hides at the top of the chat and ↓ at the last prompt; each keeps its place when the other hides.
+
+### Every thread action in the thread header
+
+Settle, Snooze and Pin buttons sit at the top of the open thread and show when they're on. **⋯** holds every action from the thread's sidebar menu (rename, regenerate title, new thread on this branch, filter the sidebar by this project, archive, copy and the rest) plus **Find in thread**, so closing the sidebar loses nothing. An unsent draft's ⋯ matches its sidebar row too. If Snooze is greyed out, hover it to see why.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./.github/readme/fork/header-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="./.github/readme/fork/header-light.png">
+    <img alt="The thread header with Settle, Snooze and Pin buttons, and its ⋯ menu open: Find in thread, New thread on master, Pin, Settle, Snooze, Rename, Regenerate title, Mark unread, Filter by weather-dashboard, Auto-settle behavior, Copy, Project settings, Archive and Delete" src="./.github/readme/fork/header-dark.png" width="760">
+  </picture>
+</p>
+
 ### Titles shimmer while they regenerate
 
 Ask for a new title and the old one shimmers until the new one lands, so you can tell it's about to change.
@@ -77,7 +99,7 @@ Ask for a new title and the old one shimmers until the new one lands, so you can
 
 ### Working, Snoozed and Settled docked in one tray
 
-Working, Snoozed and Settled threads sit together in one slightly raised tray at the bottom of the sidebar, with small uppercase headers, so a long thread list no longer runs straight into them. Each running thread gets a thin blue bar on its left edge.
+Working, Snoozed and Settled threads sit together in one raised card at the bottom of the sidebar, with small uppercase headers, so a long thread list no longer runs straight into them. Each running thread gets a thin blue bar on its left edge.
 
 <p align="center">
   <img alt="The sidebar's Working, Snoozed and Settled shelves in the dark and light themes, with blue bars beside running threads" src="./.github/readme/fork/sidebar-tray.png" width="528">
@@ -103,23 +125,26 @@ The `---` properties block at the top of a Markdown file shows as a neat table i
 
 ### And more
 
-| Feature                                       | What it does                                                                                                                                                                                                                                                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Chrome extensions in the built-in browser** | Add extensions from the Chrome Web Store with the toolbar's Extensions button. Toolbar ones such as Bitwarden get their own button with their popup. Each browser profile has its own, and they update themselves.                                                             |
-| **Settle a thread that's asking a question**  | Settling used to fail while the agent waited on a multiple-choice question. Now Settle dismisses the question, stops that run and settles, from any entry point (sidebar, header, shortcut, phone). Approvals still block Settle.                                              |
-| **Thread actions in the thread header**       | Settle, Snooze and Pin buttons sit at the top of the thread view, and ⋯ opens the same menu as the sidebar row (rename, regenerate title, archive, copy, move to project and the rest), so closing the sidebar loses nothing. An unsent draft's ⋯ matches its sidebar row too. |
-| **Move a No project thread into a project**   | A thread started without a project can move into an existing project from its menu, also after **Turn into project**. It then works in the project's folder, and its conversation resumes there.                                                                               |
-| **New thread button setting**                 | **Settings → General → Sidebar → New thread button**: "No project" makes New thread start a scratch thread straight away instead of opening the project picker. Shift+click still starts in the current project.                                                               |
-| **Search Google for selected text**           | Right-click selected text and choose **Search Google for "…"** to look it up in your default browser.                                                                                                                                                                          |
+| Feature                                       | What it does                                                                                                                                                                                                                      |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Chrome extensions in the built-in browser** | Add extensions from the Chrome Web Store with the toolbar's Extensions button. Toolbar ones such as Bitwarden get their own button with their popup. Each browser profile has its own, and they update themselves.                |
+| **Settle a thread that's asking a question**  | Settling used to fail while the agent waited on a multiple-choice question. Now Settle dismisses the question, stops that run and settles, from any entry point (sidebar, header, shortcut, phone). Approvals still block Settle. |
+| **Move a No project thread into a project**   | A thread started without a project can move into an existing project from its menu, also after **Turn into project**. It then works in the project's folder, and its conversation resumes there.                                  |
+| **New thread button setting**                 | **Settings → General → Sidebar → New thread button**: "No project" makes New thread start a scratch thread straight away instead of opening the project picker. Shift+click still starts in the current project.                  |
+| **Search Google for selected text**           | Right-click selected text and choose **Search Google for "…"** to look it up in your default browser.                                                                                                                             |
 
 ### On your phone (Android)
 
-The same features come to the Android app: next-prompt buttons (tap to add, tap again to remove), `options` blocks as buttons, ballots filling the message box, moving a No project thread into a project, the New thread button setting, step counts, shimmering titles, frontmatter tables, and read aloud. Plus these phone-only additions:
+The same features come to the Android app: next-prompt buttons (tap to add, tap again to remove), `options` blocks as buttons, ballots filling the message box, Previous / Next prompt buttons, moving a No project thread into a project, the New thread button setting, step counts, shimmering titles, frontmatter tables, and read aloud. Plus these phone-only additions:
 
-| Feature                    | What it does                                                                                                                                                                                                                                                                  |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Settle from the thread** | A checkmark in the open thread's header settles it and goes back to the list, with Undo for 10 seconds. On a settled thread the checkmark un-settles it. The header's ⋮ menu holds Files, Git and Terminal plus every action the thread's list row offers, in the same order. |
-| **Back to where you were** | Going back from a thread scrolls the list to that thread and highlights it once.                                                                                                                                                                                              |
+| Feature                         | What it does                                                                                                                                                                                                                                                                       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Settle from the thread**      | A checkmark in the open thread's header settles it and goes back to the list, with Undo for 10 seconds. On a settled thread the checkmark un-settles it. The header's ⋮ menu holds Files, Git and Terminal plus every action the thread's list row offers, in the same order.      |
+| **Back to where you were**      | Going back from a thread scrolls the list to that thread and highlights it once.                                                                                                                                                                                                   |
+| **Bottom pill**                 | The scroll-to-end arrow is a pill labelled **Bottom**, so it can't be mixed up with the ↓ Next prompt button beside it.                                                                                                                                                            |
+| **Start without a project**     | A new thread's heading has an "or start without a project" link under it, as on desktop: one tap instead of two.                                                                                                                                                                   |
+| **Android's digital assistant** | Pick T3 Code Fork under Android's **Default apps → Digital assistant app**. Then the assistant gesture (such as holding the side button) opens a new No project thread and starts dictation. If no connected PC offers No project threads, it opens the new-thread screen instead. |
+| **Updates itself**              | On Wi-Fi (any connection Android doesn't call metered) the app downloads the newest release, checks it, and installs it when you leave the app. If Android needs a tap, it asks when you come back. Allow "Install unknown apps" for it once, when it asks.                        |
 
 Read aloud on the phone uses a small speech service on the paired PC (port 3776 over Tailscale), because the phone's own voices are poor. It works over a direct Tailscale connection, not a relay. Details in [FORK.md](./FORK.md#phone-app).
 
@@ -127,6 +152,7 @@ Read aloud on the phone uses a small speech service on the paired PC (port 3776 
 
 - **Phone app no longer crashes after pairing.** MT Code's computer-task code needs `crypto.getRandomValues`, which the phone's JavaScript engine lacks; this build supplies it.
 - **Settling a waiting question can't send the agent a blank answer.** Stop withdraws the question properly instead of answering it empty.
+- **Copy buttons work in inline pages on the phone.**
 
 ## Download
 
@@ -137,7 +163,7 @@ Get the newest release from **[GitHub Releases](https://github.com/ryankhart/t3c
 
 There are no macOS or Linux builds. The Windows installer is unsigned: if SmartScreen warns, choose **More info → Run anyway**.
 
-The desktop app updates itself from this repository's releases. Heads-up: an update installs and restarts the app by itself within about a minute of a release, which stops any agent runs in progress.
+The desktop app updates itself from this repository's releases. It checks 15 seconds after it starts and then every 4 hours. Heads-up: when it finds a new release, it downloads it, then installs it and restarts by itself, which stops any agent runs in progress.
 
 Because it uses MT Code's app identity and data folder, it replaces MT Code rather than installing beside it. Your MT Code threads, settings and projects carry over. It does install beside official T3 Code, which uses `~/.t3`.
 
