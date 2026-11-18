@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { TALK_MODE_INSTRUCTION } from "@t3tools/shared/composerContextReferences";
+
 import { threadTitleTextFromPrompt } from "./threadTitle.ts";
 
 describe("threadTitleTextFromPrompt", () => {
@@ -15,6 +17,12 @@ describe("threadTitleTextFromPrompt", () => {
   it("composes NFD macOS paths mentioned in the prompt", () => {
     expect(threadTitleTextFromPrompt("Read @\u1109\u1175\u110b\u1161\u11ab/a.txt")).toBe(
       "Read @\uc2dc\uc548/a.txt",
+    );
+  });
+
+  it("titles a talk mode message by what was said", () => {
+    expect(threadTitleTextFromPrompt(`${TALK_MODE_INSTRUCTION}What is two plus two?`)).toBe(
+      "What is two plus two?",
     );
   });
 });

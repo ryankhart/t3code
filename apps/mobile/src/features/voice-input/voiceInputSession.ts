@@ -9,6 +9,7 @@ import {
 } from "@t3tools/client-runtime/voice-input";
 
 import { m } from "../../i18n/messages";
+import { createEndOfSpeechDetector, type EndOfSpeechVerdict } from "./endOfSpeech";
 import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
 const VOICE_METERING_INTERVAL_MS = 80;
@@ -20,6 +21,8 @@ export type VoiceInputTarget = {
   readonly label?: string;
   readonly readDraft: () => VoiceDraftSnapshot | null;
   readonly commitDraft: VoiceInputControllerDependencies["commitDraft"];
+  /** Hands-free: finish after a pause in speech, and give up (calling this) when nothing is said. */
+  readonly onNoSpeech?: () => void;
 };
 
 export type VoiceInputSnapshot = {
@@ -83,6 +86,7 @@ export class VoiceInputSession {
   private audioLevels = SILENT_LEVELS;
   private releaseKeepAwake: (() => void) | null = null;
   private meteringInterval: ReturnType<typeof setInterval> | null = null;
+  private endOfSpeech: ((level: number, recordedMs: number) => EndOfSpeechVerdict) | null = null;
 
   constructor(dependencies: VoiceInputSessionDependencies) {
     this.dependencies = dependencies;
@@ -167,6 +171,7 @@ export class VoiceInputSession {
 
   private startRecordingActivity(): void {
     this.releaseKeepAwake = this.dependencies.keepAwake();
+    this.endOfSpeech = this.target?.onNoSpeech ? createEndOfSpeechDetector() : null;
     this.sampleRecording();
     this.meteringInterval = setInterval(() => this.sampleRecording(), VOICE_METERING_INTERVAL_MS);
   }
@@ -174,6 +179,7 @@ export class VoiceInputSession {
   private stopRecordingActivity(): void {
     if (this.meteringInterval !== null) clearInterval(this.meteringInterval);
     this.meteringInterval = null;
+    this.endOfSpeech = null;
     this.releaseKeepAwake?.();
     this.releaseKeepAwake = null;
   }
@@ -194,6 +200,15 @@ export class VoiceInputSession {
     );
     if (elapsedSeconds !== this.snapshot.elapsedSeconds) {
       this.publish({ ...this.snapshot, elapsedSeconds });
+    }
+
+    const verdict = this.endOfSpeech?.(level, sample.durationMillis) ?? "listening";
+    if (verdict === "finished") {
+      void this.controller.stop();
+    } else if (verdict === "no-speech") {
+      const onNoSpeech = this.target?.onNoSpeech;
+      this.controller.cancel();
+      onNoSpeech?.();
     }
   }
 

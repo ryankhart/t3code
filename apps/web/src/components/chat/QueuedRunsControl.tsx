@@ -9,6 +9,7 @@ import { isSlashCommand } from "@t3tools/shared/composerTrigger";
 import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
+  stripTalkModeInstruction,
 } from "@t3tools/shared/composerContextReferences";
 import { composerFileLinksToPlainText } from "@t3tools/shared/composerInlineTokens";
 import {
@@ -275,7 +276,10 @@ export function QueuedRunsControl({
             ? ""
             : assistantCitationsToPlainText(
                 composerFileLinksToPlainText(
-                  replaceComposerContextReferences(item.text, (reference) => reference.label),
+                  replaceComposerContextReferences(
+                    stripTalkModeInstruction(item.text),
+                    (reference) => reference.label,
+                  ),
                 ),
               ).trim();
           const isEditing = item.runId !== null && item.runId === props.editingRunId;

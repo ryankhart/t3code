@@ -2,7 +2,10 @@ import { mFallback, msg } from "gt-i18n";
 import type { MFunctionType } from "gt-i18n/types";
 import type { ChatAttachment } from "@t3tools/contracts";
 import { assistantCitationsToPlainText } from "@t3tools/shared/assistantCitations";
-import { replaceComposerContextReferences } from "@t3tools/shared/composerContextReferences";
+import {
+  replaceComposerContextReferences,
+  stripTalkModeInstruction,
+} from "@t3tools/shared/composerContextReferences";
 import { composerFileLinksToPlainText } from "@t3tools/shared/composerInlineTokens";
 import { truncate } from "@t3tools/shared/String";
 
@@ -38,7 +41,7 @@ export function threadTitleTextFromPrompt(
   resolve: MFunctionType = mFallback,
 ): string {
   const imageIds = new Set<string>();
-  const prose = replaceComposerContextReferences(value, (reference) => {
+  const prose = replaceComposerContextReferences(stripTalkModeInstruction(value), (reference) => {
     if (reference.kind === "image") {
       imageIds.add(reference.contextId);
       return "";

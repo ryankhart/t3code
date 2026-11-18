@@ -27,7 +27,13 @@ import {
   hasProviderUsageLimits,
   isUsageLimitsCommand,
 } from "@t3tools/shared/usageLimits";
-import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
+import { renderAssistantCitationsAsText } from "@t3tools/shared/assistantCitations";
+import {
+  StackActions,
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+} from "@react-navigation/native";
 import { msg, T, useGT, useMessages } from "gt-react-native";
 import type { ReactNode } from "react";
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from "react";
@@ -128,6 +134,11 @@ import {
   ComposerDictationToolbar,
 } from "../voice-input/ComposerDictationControl";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
+import { startReadAloud } from "../read-aloud/readAloudPlayer";
+import { useReadAloudServerUrl, useReadAloudVoice } from "../read-aloud/ReadAloudButton";
+import { TalkModeBar } from "../talk-mode/TalkModeBar";
+import type { TalkAnswer } from "../talk-mode/talkAnswer";
+import { useTalkModeSeat } from "../talk-mode/talkModeRuntime";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import type { ExistingThreadSettingsRouteParams } from "./ThreadSettingsSheet";
 import { perfProbe } from "../development/perf-probe-hooks";
@@ -166,6 +177,8 @@ export interface ThreadComposerProps {
   readonly serverConfig: T3ServerConfig | null;
   readonly queueCount: number;
   readonly activeThreadBusy: boolean;
+  /** How the run for talk mode's sent message stands, for it to read the answer aloud. */
+  readonly talkAnswer?: TalkAnswer | null;
   /** Sending declines a pending approval and redirects the agent, so `/side` is plain text. */
   readonly redirectsApproval: boolean;
   readonly canStopThread: boolean;
@@ -605,7 +618,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     settingsSheetPresentation.onEditorFocusChange(false);
     onEditorFocusChange?.(false);
   };
-  const handleSend = async (followUp?: ActiveTurnComposerAction) => {
+  const handleSend = async (followUp?: ActiveTurnComposerAction, cancelled?: () => boolean) => {
     if (isSubmissionLocked || sendBlockedReason !== null) return;
     // Sending now would leave a still-converting pasted image out of the turn, so wait for it.
     if (nativeImageSubmit.deferSend(followUp)) return;
@@ -619,10 +632,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     inFlightThreadIdsRef.current.add(threadKey);
     setSentAfterRunId(latestRunId);
     await inputRef.current?.flushPendingInput();
+    if (cancelled?.()) {
+      inFlightThreadIdsRef.current.delete(threadKey);
+      setSentAfterRunId(null);
+      return;
+    }
     const draftAtSend = getComposerDraftSnapshot(composerDraftKey);
     const stillSendable = () => {
       const draft = getComposerDraftSnapshot(composerDraftKey);
       return (
+        cancelled?.() !== true &&
         pendingPastedTextAttachmentCountRef.current === 0 &&
         pendingNativeImagePasteCountRef.current === 0 &&
         draft.text === draftAtSend.text &&
@@ -669,6 +688,35 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     onPasteImages: props.onNativePasteImages,
     onSubmit: (followUp) => void handleSend(followUp),
   });
+  const screenFocused = useIsFocused();
+  const readAloudServerUrl = useReadAloudServerUrl(props.environmentId);
+  const readAloudVoice = useReadAloudVoice();
+  useTalkModeSeat(
+    screenFocused && !props.hidden
+      ? {
+          key: composerOwnerKey,
+          threadId: props.selectedThread.id,
+          draftKey: composerDraftKey,
+          isDraft: props.isDraft === true,
+          canSend,
+          canSpeak: readAloudServerUrl !== null,
+          needsYou: props.redirectsApproval || queuedEdit !== null,
+          busy: props.activeThreadBusy,
+          connected: props.connectionState === "connected",
+          answer: props.talkAnswer ?? null,
+          send: (cancelled) => handleSend(undefined, cancelled),
+          speak: (reply, onEnd) =>
+            void startReadAloud({
+              messageId: reply.id,
+              markdown: renderAssistantCitationsAsText(reply.markdown),
+              serverUrl: readAloudServerUrl,
+              voice: readAloudVoice,
+              ownerKey: composerOwnerKey,
+              onEnd,
+            }),
+        }
+      : null,
+  );
 
   const lockedProviderInstanceId = props.canSwitchProvider
     ? undefined
@@ -871,6 +919,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           draft={draftMessage}
           onPick={pickNextPrompt}
         />
+        <TalkModeBar seatKey={composerOwnerKey} draftKey={composerDraftKey} />
 
         <ComposerSurface
           animateLayout={false}

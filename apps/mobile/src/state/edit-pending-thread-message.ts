@@ -1,4 +1,5 @@
 import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@t3tools/contracts";
+import { stripTalkModeInstruction } from "@t3tools/shared/composerContextReferences";
 import { msg } from "gt-react-native";
 import { m } from "../i18n/messages";
 import { scopedThreadKey } from "../lib/scopedEntities";
@@ -50,7 +51,10 @@ export async function editPendingThreadMessage(message: QueuedThreadMessage): Pr
       throw new Error(m(msg("Remove attachments from the composer before editing this message.")));
     }
     try {
-      await mergeComposerDraftContent(draftKey, message);
+      await mergeComposerDraftContent(draftKey, {
+        ...message,
+        text: stripTalkModeInstruction(message.text),
+      });
     } finally {
       rollback = { snapshot, merged: getComposerDraftSnapshot(draftKey) };
     }

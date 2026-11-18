@@ -4,6 +4,7 @@ import { assistantCitationsToPlainText } from "@t3tools/shared/assistantCitation
 import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
+  stripTalkModeInstruction,
 } from "@t3tools/shared/composerContextReferences";
 import { composerFileLinksToPlainText } from "@t3tools/shared/composerInlineTokens";
 
@@ -45,7 +46,10 @@ export function resolveThreadQueueRowControls(input: {
       ? ""
       : assistantCitationsToPlainText(
           composerFileLinksToPlainText(
-            replaceComposerContextReferences(input.text, (reference) => reference.label),
+            replaceComposerContextReferences(
+              stripTalkModeInstruction(input.text),
+              (reference) => reference.label,
+            ),
           ),
         ).trim(),
     isEditing,

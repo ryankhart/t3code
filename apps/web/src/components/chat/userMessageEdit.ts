@@ -1,11 +1,11 @@
 import type { MessageId } from "@t3tools/contracts";
+import { stripTalkModeInstruction } from "@t3tools/shared/composerContextReferences";
 
 import type { TimelineEntry } from "../../session-logic";
 
 /**
- * Edit the thread's last user message in place (MT Code fork, first shipped as
- * PR #7237 on the old engine). On orchestration-v2 it is built from upstream
- * primitives: saving rolls the thread back to before the message
+ * Edit the thread's last user message in place (MT Code fork). It is built
+ * from upstream primitives: saving rolls the thread back to before the message
  * (`checkpoint.rollback`, keeping files) and sends the edited text as a new
  * message. No server command is involved.
  */
@@ -24,7 +24,9 @@ export interface EditableUserMessageParts {
   readonly suffix: string;
 }
 
-export function splitEditableUserMessage(messageText: string): EditableUserMessageParts {
+export function splitEditableUserMessage(sentText: string): EditableUserMessageParts {
+  // An edited spoken message is a typed one, so its edit goes without the spoken-reply note.
+  const messageText = stripTalkModeInstruction(sentText);
   const prefix = T3_PROMPT_PREFIXES.find((candidate) => messageText.startsWith(candidate)) ?? "";
   const withoutPrefix = messageText.slice(prefix.length);
   const leadingReviewComment = LEADING_REVIEW_COMMENT_EDITABLE.exec(withoutPrefix);

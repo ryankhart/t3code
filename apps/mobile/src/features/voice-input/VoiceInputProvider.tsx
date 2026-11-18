@@ -181,6 +181,11 @@ export function isTranscribingDictation(): boolean {
   return phase === "transcribing" || phase === "post-processing";
 }
 
+export function useTranscribingDictation(): boolean {
+  const { session } = useAtomValue(voiceInputAtom);
+  return useSyncExternalStore(session.subscribe, isTranscribingDictation);
+}
+
 // A dictation is cancelled when its transcription route changes, and right after a launch the
 // route still changes: the saved choice loads, then its environment connects.
 const voiceRouteSettledAtom = Atom.make((get) => {
@@ -209,19 +214,57 @@ export function dictationRouteSettled(timeoutMs: number): Promise<void> {
 }
 
 /**
- * Starts dictating into a draft without its composer, for a start that opens the draft itself.
- * The draft's composer shows the recording once it is on screen; until then the edge pill does.
+ * Hands-free dictation into a draft: it ends itself after a pause in speech. Reports whether the
+ * words reached the draft, or the dictation ended any other way (nothing said, cancelled,
+ * interrupted, refused).
  */
-export function dictateIntoDraft(draftKey: string, label: string): Promise<void> {
-  return appAtomRegistry.get(voiceInputAtom).session.start({
-    ...createVoiceInputTarget(
-      draftKey,
-      () => getComposerDraftSnapshot(draftKey).text,
-      (text) => setComposerDraftText(draftKey, text),
-      { start: 0, end: 0 },
-    ),
-    label,
+export function dictateHandsFree(
+  draftKey: string,
+  label: string,
+  events: { readonly onCommitted: () => void; readonly onEnded: () => void },
+): void {
+  const { session } = appAtomRegistry.get(voiceInputAtom);
+  const end = getComposerDraftSnapshot(draftKey).text.length;
+  let started = false;
+  let committed = false;
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    unsubscribe();
+    if (committed) events.onCommitted();
+    else events.onEnded();
+  };
+  const unsubscribe = session.subscribe(() => {
+    const { ownerKey, state } = session.getSnapshot();
+    if (ownerKey !== draftKey || state.phase === "idle" || state.phase === "error") {
+      if (started) finish();
+      return;
+    }
+    started = true;
   });
+  session
+    .start({
+      ...createVoiceInputTarget(
+        draftKey,
+        () => getComposerDraftSnapshot(draftKey).text,
+        (text) => {
+          setComposerDraftText(draftKey, text);
+          committed = true;
+        },
+        { start: end, end },
+      ),
+      label,
+      onNoSpeech: () => {},
+    })
+    .then(() => {
+      if (!started) finish();
+    }, finish);
+}
+
+/** Ends a hands-free dictation into `draftKey`, if it is still running. */
+export function cancelDictation(draftKey: string): void {
+  appAtomRegistry.get(voiceInputAtom).session.cancel(draftKey);
 }
 
 export function useGlobalVoiceInput() {

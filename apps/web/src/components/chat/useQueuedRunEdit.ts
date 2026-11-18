@@ -29,6 +29,7 @@ import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import {
   restoreAttachmentOnlyBootstrapPrompt,
   stripAttachmentOnlyBootstrapPrompt,
+  stripTalkModeInstruction,
 } from "@t3tools/shared/composerContextReferences";
 import { Atom } from "effect/reactivity";
 import type { RefObject } from "react";
@@ -294,7 +295,8 @@ export function useQueuedRunEdit(input: {
     if (activeThreadId === null) return;
     if (editing !== null && editing.runId !== request.runId) clearEditDraft(editing.runId);
     const target = queuedRunEditDraftId(routeThreadRef, request.runId);
-    const sentText = stripAttachmentOnlyBootstrapPrompt(request.text);
+    // An edited spoken message is a typed one, so it goes without the spoken-reply note.
+    const sentText = stripAttachmentOnlyBootstrapPrompt(stripTalkModeInstruction(request.text));
     const message = serverProjection?.messages.find((message) => message.id === request.messageId);
     const context = message?.context;
     const referenced = new Set(collectInlineContextIds(sentText));

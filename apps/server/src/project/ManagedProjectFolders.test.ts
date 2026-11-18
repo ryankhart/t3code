@@ -8,6 +8,7 @@ import {
   VcsProcessSpawnError,
   VcsProcessTimeoutError,
 } from "@t3tools/contracts";
+import { TALK_MODE_INSTRUCTION } from "@t3tools/shared/composerContextReferences";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -327,6 +328,15 @@ it.effect("gives each Scratch thread its own folder, named from its message", ()
         }),
       );
       assert.match(path.basename(accented), /^\d{4}-\d{2}-\d{2}-tim-kiem-skill-/);
+
+      const spoken = Option.getOrThrow(
+        yield* scratch.folderForThread({
+          projectId,
+          threadId: ThreadId.make("thread-talk-mode"),
+          text: `${TALK_MODE_INSTRUCTION}What is two plus two?`,
+        }),
+      );
+      assert.match(path.basename(spoken), /^\d{4}-\d{2}-\d{2}-what-is-two-plus-two-/);
     }),
   ),
 );

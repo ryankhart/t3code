@@ -25,6 +25,7 @@ import { upgradeLegacyContextMessage } from "./composerContextLegacy.ts";
 import {
   isAttachmentOnlyBootstrapPrompt,
   parseComposerContextHref,
+  stripTalkModeInstruction,
 } from "./composerContextReferences.ts";
 import { parseAssistantCitationHref } from "./assistantCitations.ts";
 import type { OrchestrationV2ConversationMessage } from "@t3tools/contracts";
@@ -229,7 +230,8 @@ export function searchableMessageSegments(
   if (message.role === "user") {
     // Clients hide this prompt, so find must not match text nobody can see.
     if (isAttachmentOnlyBootstrapPrompt(message.text)) return [];
-    const text = message.context ? message.text : upgradeLegacyContextMessage(message.text).text;
+    const shown = stripTalkModeInstruction(message.text);
+    const text = message.context ? shown : upgradeLegacyContextMessage(shown).text;
     return markdownThreadFindText(text, { userMessage: true, cwd, skills, theme });
   }
   if (message.role !== "assistant") return null;

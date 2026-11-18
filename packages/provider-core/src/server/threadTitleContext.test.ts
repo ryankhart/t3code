@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ChatAttachmentId } from "@t3tools/contracts";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
+import {
+  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  TALK_MODE_INSTRUCTION,
+} from "@t3tools/shared/composerContextReferences";
 import { formatThreadTitleContext, limitTitleMessage } from "./threadTitleContext.ts";
 
 describe("thread title context", () => {
@@ -40,6 +43,14 @@ describe("thread title context", () => {
     );
     expect(result.message).toContain("USER:\nMerge it when green.");
     expect(result.message).toContain("ASSISTANT:\nImplementation details.");
+  });
+
+  it("titles a spoken message from what was said", () => {
+    expect(
+      formatThreadTitleContext([
+        { role: "user", text: `${TALK_MODE_INSTRUCTION}What is two plus two?` },
+      ]).message,
+    ).toBe("USER:\nWhat is two plus two?");
   });
 
   it("retains both ends and role labels in long user messages", () => {

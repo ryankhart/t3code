@@ -22,6 +22,10 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
+import {
+  stripTalkModeInstruction,
+  TALK_MODE_INSTRUCTION,
+} from "@t3tools/shared/composerContextReferences";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import {
   EXACT_PHRASE_GAP,
@@ -499,7 +503,13 @@ export const make = Effect.gen(function* () {
         AND messages.streaming = 0
         AND messages.role IN ('user', 'assistant')
         AND messages.message_id NOT LIKE 'async-answer:%'
-        AND json_extract(messages.payload_json, '$.text') LIKE ${pattern} ESCAPE '!'
+        -- Talk mode's note leads some user messages but isn't shown, so it can't match.
+        AND CASE
+          WHEN substr(json_extract(messages.payload_json, '$.text'), 1, ${TALK_MODE_INSTRUCTION.length})
+            = ${TALK_MODE_INSTRUCTION}
+          THEN substr(json_extract(messages.payload_json, '$.text'), ${TALK_MODE_INSTRUCTION.length + 1})
+          ELSE json_extract(messages.payload_json, '$.text')
+        END LIKE ${pattern} ESCAPE '!'
       ORDER BY messages.created_at DESC, messages.message_id ASC
       LIMIT ${limit}
     `,
@@ -626,7 +636,7 @@ export const make = Effect.gen(function* () {
     const matchMessage = messageMatcher(input.query);
     for (const row of rows) {
       // Webhook URL tokens are withheld before matching, so a snippet cut inside the URL has none.
-      const text = withoutWebhookUrlToken(row.text.replace(MARKDOWN_LINK, "$1"));
+      const text = withoutWebhookUrlToken(stripTalkModeInstruction(row.text).replace(MARKDOWN_LINK, "$1"));
       const match = matchMessage(text);
       if (match === null) continue;
       const hit = { row, text, ...match };
@@ -694,7 +704,7 @@ export const make = Effect.gen(function* () {
     const folded = input.query.toLowerCase();
     return {
       matches: rows.map((row) => {
-        const text = row.text.replace(MARKDOWN_LINK, "$1");
+        const text = stripTalkModeInstruction(row.text).replace(MARKDOWN_LINK, "$1");
         const offset = matchMessage(text)?.offset ?? text.toLowerCase().indexOf(folded);
         return {
           threadId: row.threadId,

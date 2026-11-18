@@ -12,6 +12,7 @@ import {
 import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
+  stripTalkModeInstruction,
 } from "@t3tools/shared/composerContextReferences";
 import { filePreviewKind } from "@t3tools/shared/filePreview";
 import { imageMimeType } from "@t3tools/shared/image";
@@ -107,7 +108,9 @@ export function resolveUserMessagePresentation(message: {
   }
   return {
     // The agent needs words to start a turn; people sent only the attachments.
-    text: isAttachmentOnlyBootstrapPrompt(message.text) ? "" : message.text,
+    text: isAttachmentOnlyBootstrapPrompt(message.text)
+      ? ""
+      : stripTalkModeInstruction(message.text),
     attribution:
       message.createdBy !== "agent"
         ? null
