@@ -1,3 +1,5 @@
+import { TALK_MODE_INSTRUCTION } from "@t3tools/shared/composerContextReferences";
+
 import { appAtomRegistry } from "./atom-registry";
 import { createThreadOutboxManager } from "./thread-outbox-manager";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
@@ -16,8 +18,33 @@ export async function flushThreadOutbox(): Promise<void> {
   await flushThreadOutboxWrites();
 }
 
+export interface TalkModeNote {
+  readonly threadId: string;
+  /** The trimmed text the message must have. */
+  readonly text: string;
+  /** `saved` settles with the outbox write. */
+  readonly onQueued: (messageId: string, saved: Promise<void>) => void;
+}
+
+let talkModeNote: TalkModeNote | null = null;
+
+/** Talk mode: the next matching message goes out with the spoken-reply note; null disarms. */
+export function armTalkModeNote(note: TalkModeNote | null): void {
+  talkModeNote = note;
+}
+
 export function enqueueThreadOutboxMessage(message: QueuedThreadMessage): Promise<void> {
-  return threadOutboxManager.enqueue(message);
+  const note = talkModeNote;
+  if (note === null || message.threadId !== note.threadId || message.text.trim() !== note.text) {
+    return threadOutboxManager.enqueue(message);
+  }
+  talkModeNote = null;
+  const saved = threadOutboxManager.enqueue({
+    ...message,
+    text: `${TALK_MODE_INSTRUCTION}${message.text}`,
+  });
+  note.onQueued(message.messageId, saved);
+  return saved;
 }
 
 export function confirmThreadOutboxMessageQueued(message: QueuedThreadMessage): Promise<boolean> {

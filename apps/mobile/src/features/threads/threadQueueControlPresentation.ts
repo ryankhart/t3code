@@ -4,6 +4,7 @@ import { assistantCitationsToPlainText } from "@t3tools/shared/assistantCitation
 import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
+  stripTalkModeInstruction,
 } from "@t3tools/shared/composerContextReferences";
 
 export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = msg("Remove queued message");
@@ -43,7 +44,10 @@ export function resolveThreadQueueRowControls(input: {
     displayText: isAttachmentOnlyBootstrapPrompt(input.text)
       ? ""
       : assistantCitationsToPlainText(
-          replaceComposerContextReferences(input.text, (reference) => reference.label),
+          replaceComposerContextReferences(
+            stripTalkModeInstruction(input.text),
+            (reference) => reference.label,
+          ),
         ).trim(),
     isEditing,
   };

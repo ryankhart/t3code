@@ -8,6 +8,7 @@ import { assistantCitationsToPlainText } from "@t3tools/shared/assistantCitation
 import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
+  stripTalkModeInstruction,
 } from "@t3tools/shared/composerContextReferences";
 import type {
   ChatAttachment as ContractChatAttachment,
@@ -270,7 +271,10 @@ export function QueuedRunsControl({
           const previewText = isAttachmentOnlyBootstrapPrompt(item.text)
             ? ""
             : assistantCitationsToPlainText(
-                replaceComposerContextReferences(item.text, (reference) => reference.label),
+                replaceComposerContextReferences(
+                  stripTalkModeInstruction(item.text),
+                  (reference) => reference.label,
+                ),
               ).trim();
           const isEditing = item.runId !== null && item.runId === props.editingRunId;
           return (

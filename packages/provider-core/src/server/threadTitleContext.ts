@@ -1,6 +1,9 @@
 import type { ChatAttachment } from "@t3tools/contracts";
 import { assistantCitationsToPlainText } from "@t3tools/shared/assistantCitations";
-import { isAttachmentOnlyBootstrapPrompt } from "@t3tools/shared/composerContextReferences";
+import {
+  isAttachmentOnlyBootstrapPrompt,
+  stripTalkModeInstruction,
+} from "@t3tools/shared/composerContextReferences";
 
 export type ThreadTitleMessage = {
   readonly role: "user" | "assistant" | "system" | "reasoning";
@@ -29,7 +32,12 @@ export function limitTitleMessage(text: string, budget: number): string {
 
 export function formatThreadTitleContext(messages: ReadonlyArray<ThreadTitleMessage>) {
   const sections = messages.flatMap((source, index) => {
-    const message = isAttachmentOnlyBootstrapPrompt(source.text) ? { ...source, text: "" } : source;
+    const message = {
+      ...source,
+      text: isAttachmentOnlyBootstrapPrompt(source.text)
+        ? ""
+        : stripTalkModeInstruction(source.text),
+    };
     // Thinking traces dwarf answers without identifying the thread subject.
     if (
       message.role === "system" ||

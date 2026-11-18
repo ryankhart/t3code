@@ -93,6 +93,7 @@ import {
   collectComposerContextReferences,
   replaceComposerContextReferences,
   formatComposerContextReference,
+  stripTalkModeInstruction,
 } from "@t3tools/shared/composerContextReferences";
 import { ComposerContextSheet } from "../../components/ComposerContextSheet";
 import { writeComposerContextClipboard } from "../../lib/composerContextClipboard";
@@ -2666,7 +2667,7 @@ function renderFeedEntry(
                   onCopy={
                     message.context && presentation.attribution !== "guest"
                       ? () =>
-                          writeComposerContextClipboard(message.text, {
+                          writeComposerContextClipboard(stripTalkModeInstruction(message.text), {
                             version: 1,
                             source: { environmentId: props.environmentId, messageId: message.id },
                             records: message.context!.records,

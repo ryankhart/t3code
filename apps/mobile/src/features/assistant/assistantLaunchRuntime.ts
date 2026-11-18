@@ -9,12 +9,9 @@ import {
   shellsSettledAtom,
 } from "../prompt-links/newTaskPromptLink";
 import { startNoProjectThread } from "../threads/startNoProjectThread";
+import { talkMode } from "../talk-mode/talkModeRuntime";
 import { showThreadActionNotice } from "../threads/thread-action-notice";
-import {
-  dictateIntoDraft,
-  dictationRouteSettled,
-  isTranscribingDictation,
-} from "../voice-input/VoiceInputProvider";
+import { dictationRouteSettled, isTranscribingDictation } from "../voice-input/VoiceInputProvider";
 import type { AssistantLaunchEnvironment } from "./assistantLaunch";
 import { assistantModule } from "./assistantModule";
 
@@ -62,6 +59,6 @@ export function assistantLaunchEnvironment(
     dictationReady: () => dictationRouteSettled(DICTATION_READY_WAIT_MS),
     createDraft: (project) =>
       createNewTaskDraft({ environmentId: project.environmentId, projectId: project.id }),
-    dictate: (draftKey) => void dictateIntoDraft(draftKey, "New thread"),
+    dictate: (draftKey) => talkMode.start(draftKey),
   };
 }

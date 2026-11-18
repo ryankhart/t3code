@@ -215,6 +215,7 @@ import {
 } from "./ThreadComposer";
 import { ComposerPopoverHost } from "./ComposerPopoverHost";
 import { ReadAloudOwner } from "../read-aloud/ReadAloudButton";
+import { useTalkAnswer } from "../talk-mode/talkModeRuntime";
 import { ThreadFeed, type ThreadFeedHistoryControls } from "./ThreadFeed";
 import { WorkspaceMutationIdProvider } from "./WorkspaceMutationIdProvider";
 import { useThreadTurnSubagents } from "./ThreadAgentsSheet";
@@ -1005,6 +1006,7 @@ function ThreadDetailBody(
   } | null>(null);
   const activeUserInputRequestId = props.activePendingUserInput?.requestId ?? null;
   const questionInFlow = Platform.OS === "android" && activeUserInputRequestId !== null;
+  const talkAnswer = useTalkAnswer(props.selectedThreadDetailRef, props.selectedThreadFeed);
   const composerSlotHidden =
     activeUserInputRequestId !== null || props.creationState?.kind === "failed";
   const pendingMessageEditBlocked =
@@ -2000,6 +2002,7 @@ function ThreadDetailBody(
                         serverConfig={props.serverConfig}
                         queueCount={props.selectedThreadQueueCount}
                         activeThreadBusy={props.activeThreadBusy}
+                        talkAnswer={talkAnswer}
                         redirectsApproval={
                           props.activePendingApprovals.length > 0 &&
                           props.activePendingUserInput === null

@@ -23,6 +23,7 @@ import {
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   type EnvironmentId,
 } from "@t3tools/contracts";
+import { stripTalkModeInstruction } from "@t3tools/shared/composerContextReferences";
 import { buildTemporaryWorktreeBranchName } from "@t3tools/shared/git";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -409,7 +410,7 @@ export const recoverEditedCreationAfterDelivery = Effect.fn("ThreadOutbox.recove
       // Merge before removal to retain file ownership; allow overflow and let send guards require trimming.
       yield* storage("hand-back-to-draft", kept.messageId, () =>
         mergeComposerDraftContent(draftKey, {
-          text: kept.text,
+          text: stripTalkModeInstruction(kept.text),
           context: kept.context,
           attachments: [],
         }),
@@ -521,7 +522,7 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
       // The merge publishes even when persisting it fails, so the rollback is captured either way.
       yield* storage("restore-to-draft", queuedMessage.messageId, () =>
         mergeComposerDraftContent(draftKey, {
-          text: queuedMessage.text,
+          text: stripTalkModeInstruction(queuedMessage.text),
           context: queuedMessage.context,
           attachments: queuedMessage.attachments,
         }),

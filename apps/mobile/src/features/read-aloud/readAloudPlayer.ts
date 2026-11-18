@@ -30,6 +30,9 @@ let session = 0;
 /** The thread screen the playing reply belongs to, so leaving it stops reading. */
 let ownerKey: string | null = null;
 let stopCurrent: (() => void) | null = null;
+/** How the playing reply ended: played to the end, stopped or replaced, failed, or had no words. */
+export type ReadAloudOutcome = "finished" | "stopped" | "failed" | "empty";
+let endCurrent: ((outcome: ReadAloudOutcome) => void) | null = null;
 const listeners = new Set<() => void>();
 
 function setState(next: ReadAloudState) {
@@ -52,13 +55,25 @@ export function useReadAloudState(): ReadAloudState {
   return useSyncExternalStore(subscribe, () => state);
 }
 
+function takeEnd(): ((outcome: ReadAloudOutcome) => void) | null {
+  const end = endCurrent;
+  endCurrent = null;
+  return end;
+}
+
 export function stopReadAloud() {
+  finishReadAloud("stopped");
+}
+
+function finishReadAloud(outcome: ReadAloudOutcome) {
+  const end = takeEnd();
   session += 1;
   const stop = stopCurrent;
   stopCurrent = null;
   stop?.();
   ownerKey = null;
   setState({ messageId: null, status: "idle", error: null });
+  end?.(outcome);
 }
 
 /** Stops reading if the reply playing belongs to `key` (a thread screen that is going away). */
@@ -68,6 +83,7 @@ export function stopReadAloudFor(key: string) {
 
 function fail(current: number, messageId: string, error: unknown) {
   if (current !== session) return;
+  const end = takeEnd();
   const stop = stopCurrent;
   stopCurrent = null;
   stop?.();
@@ -75,6 +91,7 @@ function fail(current: number, messageId: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   setState({ messageId, status: "idle", error: message });
   Dialog.alert("Couldn't read aloud", message);
+  end?.("failed");
 }
 
 export async function startReadAloud(input: {
@@ -83,13 +100,18 @@ export async function startReadAloud(input: {
   readonly serverUrl: string | null;
   readonly voice: string;
   readonly ownerKey?: string | null;
+  readonly onEnd?: (outcome: ReadAloudOutcome) => void;
 }): Promise<void> {
   stopReadAloud();
   const current = session;
   ownerKey = input.ownerKey ?? null;
   // The reply's options block shows as buttons, not text, so it isn't read.
   const text = markdownToSpeechText(stripOptionsCodeFences(input.markdown));
-  if (text.length === 0) return;
+  if (text.length === 0) {
+    input.onEnd?.("empty");
+    return;
+  }
+  endCurrent = input.onEnd ?? null;
   if (!input.serverUrl) {
     fail(
       current,
@@ -119,7 +141,7 @@ export async function startReadAloud(input: {
     const subscription = created.addListener("playbackStatusUpdate", (status: AudioStatus) => {
       if (current !== session) return;
       if (status.didJustFinish) {
-        stopReadAloud();
+        finishReadAloud("finished");
         return;
       }
       if ("error" in status && typeof status.error === "string" && status.error.length > 0) {

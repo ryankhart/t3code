@@ -6,6 +6,7 @@ import {
   type ThreadId,
   VcsProcessSpawnError,
 } from "@t3tools/contracts";
+import { stripTalkModeInstruction } from "@t3tools/shared/composerContextReferences";
 import { foldLatinDiacritics, newProjectFolderName } from "@t3tools/shared/path";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
@@ -370,7 +371,7 @@ const make = Effect.gen(function* () {
     if (Option.isNone(root)) return Option.none();
     if (!(yield* isScratchRoot(input.projectId, root.value))) return Option.none();
     const date = DateTime.formatIso(yield* DateTime.now).slice(0, 10);
-    const words = folderWords(input.text);
+    const words = folderWords(stripTalkModeInstruction(input.text));
     const id = input.threadId.toLowerCase().replace(/[^a-z0-9]/g, "");
     const folderFor = (idPart: string) =>
       path.join(root.value, [date, words, idPart].filter(Boolean).join("-"));

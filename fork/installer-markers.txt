@@ -15,3 +15,4 @@ Its old folder still holds files
 data-previous-prompt
 Can't snooze while the thread is waiting on you
 data-next-prompt
+Talk mode: I said this out loud

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { CommandId, EnvironmentId, MessageId, ThreadId } from "@t3tools/contracts";
+import { TALK_MODE_INSTRUCTION } from "@t3tools/shared/composerContextReferences";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
 
 const state = vi.hoisted(() => ({
@@ -88,6 +89,13 @@ describe("editing a pending message", () => {
     });
     expect(await editPendingThreadMessage(message)).toBe(true);
     expect(state.held).toEqual({});
+
+    // A spoken message comes back as what was said; the queued copy removed is still the original.
+    state.draft = { text: "Existing draft", attachments: [] };
+    const spoken = { ...message, text: `${TALK_MODE_INSTRUCTION}Queued task` };
+    expect(await editPendingThreadMessage(spoken)).toBe(true);
+    expect(state.draft.text).toBe("Existing draft\n\nQueued task");
+    expect(state.remove).toHaveBeenLastCalledWith(spoken, 1);
   });
   it("does not reclaim a message already being dispatched", async () => {
     state.dispatching = { [message.messageId]: true };

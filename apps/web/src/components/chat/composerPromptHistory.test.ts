@@ -1,6 +1,7 @@
 import { EnvironmentId, ScheduledTaskId, ThreadId } from "@t3tools/contracts";
 import {
   formatComposerContextReference,
+  TALK_MODE_INSTRUCTION,
   threadContextRecord,
 } from "@t3tools/shared/composerContextReferences";
 import { describe, expect, it } from "vite-plus/test";
@@ -57,6 +58,9 @@ describe("recallableComposerPrompt", () => {
     const sent =
       "Ultrathink:\nInvestigate this\n\n<terminal_context>\n- Terminal 1 lines 12-13:\n  12 | git status\n  13 | On branch main\n</terminal_context>\n\n<element_context>\n- <button>:\n  url: https://example.com\n</element_context>";
     expect(recallableComposerPrompt(sent)).toBe("Investigate this");
+    expect(recallableComposerPrompt(`${TALK_MODE_INSTRUCTION}What is two plus two?`)).toBe(
+      "What is two plus two?",
+    );
   });
 
   it.each([
