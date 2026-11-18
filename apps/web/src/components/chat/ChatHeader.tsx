@@ -25,6 +25,7 @@ import { MiddleTruncate } from "../ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
 import { useDraftActionMenu } from "~/hooks/useDraftActionMenu";
+import { useMenuButtonToggle } from "~/hooks/useMenuButtonToggle";
 import { useThreadActionMenu } from "~/hooks/useThreadActionMenu";
 import { threadEnvironment } from "../../state/threads";
 import { canShareWithGuestAtom } from "./guestShareAvailability";
@@ -250,16 +251,17 @@ export const ChatHeader = memo(function ChatHeader({
   });
   const draftMenu = useDraftActionMenu();
   const openDraftMenu = (position: { x: number; y: number }) => {
-    if (isServerThread || !draftId) return;
-    draftMenu.openMenu(draftId, position, () => ({
+    if (isServerThread || !draftId) return undefined;
+    return draftMenu.openMenu(draftId, position, () => ({
       workspaceRoot: activeProjectCwd,
       openProjectSettings: onOpenProjectSettings,
     }));
   };
+  const titleMenuToggle = useMenuButtonToggle();
   const openMenuFromTitle = (event: ReactMouseEvent<HTMLButtonElement>) => {
     if (isTrailingDoubleClick(event.detail)) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    openMenu({ x: rect.left, y: rect.bottom + 4 });
+    titleMenuToggle.onClick(event, () => openMenu({ x: rect.left, y: rect.bottom + 4 }));
   };
   // A native menu takes the second click, so only the in-page menu lets a double-click reach here.
   const handleTitleDoubleClick = (event: ReactMouseEvent) => {
@@ -421,6 +423,7 @@ export const ChatHeader = memo(function ChatHeader({
                       type="button"
                       aria-label={`Thread actions for ${activeThreadTitle}`}
                       aria-haspopup="menu"
+                      onPointerDown={titleMenuToggle.onPointerDown}
                       onClick={openMenuFromTitle}
                       onDoubleClick={canOperateThread ? handleTitleDoubleClick : undefined}
                       className="group/thread-title inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 rounded-sm text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"

@@ -38,7 +38,7 @@ export function useDraftActionMenu() {
     position: { x: number; y: number },
     place: DraftMenuPlace,
   ) => {
-    void (async () => {
+    return (async () => {
       const api = readLocalApi();
       const session = useComposerDraftStore.getState().getDraftSession(draftId);
       if (!api || !session || session.promotedTo) return;
