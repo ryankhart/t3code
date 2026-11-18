@@ -45,7 +45,7 @@ export function useDraftActionMenu() {
     place: DraftMenuPlace,
     source?: ContextMenuSource,
   ) => {
-    void (async () => {
+    return (async () => {
       const api = readLocalApi();
       const session = useComposerDraftStore.getState().getDraftSession(draftId);
       if (!api || !session || session.promotedTo) return;

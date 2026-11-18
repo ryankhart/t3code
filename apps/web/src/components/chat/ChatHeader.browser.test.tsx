@@ -87,6 +87,27 @@ it("opens the thread menu on a desktop title click without waiting", async () =>
   expect(openMenu).toHaveBeenCalledOnce();
 });
 
+it.each(["Thread actions", "Thread actions for New thread"])(
+  "closes the open menu when %s is pressed again",
+  async (name) => {
+    // Like both real menus, this one closes on the press that lands outside it.
+    openMenu.mockReset().mockImplementation(
+      () =>
+        new Promise<void>((resolve) =>
+          document.addEventListener("pointerdown", () => resolve(), {
+            capture: true,
+            once: true,
+          }),
+        ),
+    );
+    await using screen = await render(header("New thread"));
+    const button = screen.getByRole("button", { name, exact: true });
+    await button.click();
+    await button.click();
+    expect(openMenu).toHaveBeenCalledOnce();
+  },
+);
+
 it("keeps the Escape that cancels a rename from also reaching window shortcuts", async () => {
   persisted.title = "New thread";
   await using screen = await render(header(persisted.title));
