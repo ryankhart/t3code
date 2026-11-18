@@ -92,7 +92,8 @@ beforeEach(() => {
 
 describe("startReadAloud", () => {
   it("streams the PC's audio and goes back to idle when it ends", async () => {
-    await startReadAloud(reply("m1"));
+    const onEnd = vi.fn();
+    await startReadAloud({ ...reply("m1"), onEnd });
     expect(audio.players[0]?.url).toBe("http://100.64.0.10:3776/audio/1.mp3");
     expect(getReadAloudState()).toMatchObject({ messageId: "m1", status: "loading" });
     audio.players[0]!.emit({ playing: true });
@@ -100,6 +101,7 @@ describe("startReadAloud", () => {
     audio.players[0]!.emit({ didJustFinish: true });
     expect(getReadAloudState()).toMatchObject({ messageId: null, status: "idle", error: null });
     expect(audio.players[0]!.released).toBe(true);
+    expect(onEnd).toHaveBeenCalledExactlyOnceWith("finished");
   });
 
   it("doesn't read the options block", async () => {
@@ -108,11 +110,18 @@ describe("startReadAloud", () => {
       text: "Pick one.",
       voice: "en-US-AvaMultilingualNeural",
     });
+    speech.requestSpeech.mockClear();
+    const onEnd = vi.fn();
+    await startReadAloud({ ...reply("m2", "```options\nShip it\n```"), onEnd });
+    expect(speech.requestSpeech).not.toHaveBeenCalled();
+    expect(onEnd).toHaveBeenCalledExactlyOnceWith("empty");
   });
 
   it("shows a server error once, as a dialog", async () => {
     speech.requestSpeech.mockRejectedValueOnce(new Error("edge-tts failed."));
-    await startReadAloud(reply("m1"));
+    const onEnd = vi.fn();
+    await startReadAloud({ ...reply("m1"), onEnd });
+    expect(onEnd).toHaveBeenCalledExactlyOnceWith("failed");
     expect(getReadAloudState()).toMatchObject({
       messageId: "m1",
       status: "idle",
@@ -154,8 +163,10 @@ describe("startReadAloud", () => {
   });
 
   it("replaces the reply that is playing", async () => {
-    await startReadAloud(reply("m1"));
+    const onEnd = vi.fn();
+    await startReadAloud({ ...reply("m1"), onEnd });
     await startReadAloud(reply("m2"));
+    expect(onEnd).toHaveBeenCalledExactlyOnceWith("stopped");
     expect(audio.players[0]!.released).toBe(true);
     expect(getReadAloudState()).toMatchObject({ messageId: "m2", status: "loading" });
   });

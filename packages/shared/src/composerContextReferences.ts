@@ -178,6 +178,17 @@ export function collectComposerContextReferences(
 export const ATTACHMENT_ONLY_BOOTSTRAP_PROMPT =
   "[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
 
+/**
+ * Leads a message spoken in the phone app's talk mode. The agent reads it; message views and
+ * thread titles show only what was said.
+ */
+export const TALK_MODE_INSTRUCTION =
+  "[Talk mode: I said this out loud and your reply will be read aloud to me. Answer in one to three short, natural spoken sentences, with no headings, lists, tables, code, links or options block.]\n\n";
+
+export function stripTalkModeInstruction(text: string): string {
+  return text.startsWith(TALK_MODE_INSTRUCTION) ? text.slice(TALK_MODE_INSTRUCTION.length) : text;
+}
+
 /** Claude's ultrathink effort sends the prompt as `Ultrathink:\n<prompt>`. */
 export function isAttachmentOnlyBootstrapPrompt(text: string): boolean {
   return text.replace(/^Ultrathink:\s*/i, "") === ATTACHMENT_ONLY_BOOTSTRAP_PROMPT;

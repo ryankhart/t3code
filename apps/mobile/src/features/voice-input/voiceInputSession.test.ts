@@ -344,6 +344,44 @@ describe("global voice input", () => {
     expect(nextCommit).toHaveBeenCalledWith("second spoken text", { start: 18, end: 18 });
   });
 
+  it("ends a hands-free recording after a pause, or gives up when nothing is said", async () => {
+    vi.useFakeTimers();
+    try {
+      let sample: VoiceRecordingSample = { durationMillis: 0, metering: -100 };
+      const { session } = createSession({ sampleRecording: () => sample });
+      const commit = vi.fn();
+      const onNoSpeech = vi.fn();
+      const target = () => ({
+        ...createVoiceInputTarget("talk", () => "", commit, { start: 0, end: 0 }),
+        onNoSpeech,
+      });
+      const tick = (durationMillis: number, metering: number) => {
+        sample = { durationMillis, metering };
+        vi.advanceTimersByTime(80);
+      };
+
+      const stop = vi.spyOn(session.controller, "stop");
+      await session.start(target());
+      // Words, with the dips between them that set the room's level.
+      for (let ms = 80; ms <= 1_000; ms += 80) tick(ms, ms % 160 === 0 ? -10 : -40);
+      tick(1_800, -100);
+      expect(stop).not.toHaveBeenCalled();
+      tick(2_600, -100);
+      expect(stop).toHaveBeenCalledOnce();
+      await stop.mock.results[0]!.value;
+      expect(commit).toHaveBeenCalledWith("spoken text", expect.anything());
+      expect(onNoSpeech).not.toHaveBeenCalled();
+
+      await session.start(target());
+      tick(15_100, -100);
+      expect(onNoSpeech).toHaveBeenCalledOnce();
+      expect(session.getSnapshot().state.phase).toBe("idle");
+      expect(commit).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("holds the screen awake and meters only while recording", async () => {
     vi.useFakeTimers();
     try {

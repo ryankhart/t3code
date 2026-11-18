@@ -20,7 +20,10 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as TestClock from "effect/testing/TestClock";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
+import {
+  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  TALK_MODE_INSTRUCTION,
+} from "@t3tools/shared/composerContextReferences";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProjectStore from "./ProjectStore.ts";
@@ -496,42 +499,43 @@ describe("ThreadTitleRegenerationService", () => {
     }),
   );
 
-  it.effect(
-    "titles an image-only first message without sending bootstrap text to the title model",
-    () =>
-      Effect.gen(function* () {
-        for (const prefix of ["", "Ultrathink:\n"]) {
-          const harness = makeHarness();
-          yield* Effect.gen(function* () {
-            const threads = yield* ThreadManagement.ThreadManagementService;
-            const service = yield* ThreadTitleRegeneration.ThreadTitleRegenerationService;
-            const threadId = yield* createThread({
-              command: "image:create",
-              thread: "image:thread",
-            });
-            const text = prefix + ATTACHMENT_ONLY_BOOTSTRAP_PROMPT;
-            const attachments = [
-              {
-                type: "image" as const,
-                id: ChatAttachmentId.make("diagram"),
-                name: "diagram.png",
-                mimeType: "image/png",
-                sizeBytes: 10,
-              },
-            ];
-            yield* dispatchUserMessage({ command: "image:message", threadId, text, attachments });
-            const requestId = yield* armRegeneration({ command: "image:title", threadId });
-            const messageId = MessageId.make("image:message:message");
-            yield* service.execute({ threadId, requestId, kind: { type: "initial", messageId } });
-            const call = harness.generateThreadTitle.mock.calls[0]?.[0];
-            assert.equal(call?.message, "");
-            assert.deepEqual(call?.attachments, attachments);
-            const projection = yield* threads.getThreadProjection(threadId);
-            assert.equal(projection.messages[0]?.text, text);
-            assert.equal(projection.thread.title, "Generated title");
-          }).pipe(Effect.provide(harness.layer));
-        }
-      }),
+  it.effect("titles a first message from what was said, without bootstrap or talk mode text", () =>
+    Effect.gen(function* () {
+      for (const [text, titleSource] of [
+        [ATTACHMENT_ONLY_BOOTSTRAP_PROMPT, ""],
+        [`Ultrathink:\n${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT}`, ""],
+        [`${TALK_MODE_INSTRUCTION}Is it done?`, "Is it done?"],
+      ] as const) {
+        const harness = makeHarness();
+        yield* Effect.gen(function* () {
+          const threads = yield* ThreadManagement.ThreadManagementService;
+          const service = yield* ThreadTitleRegeneration.ThreadTitleRegenerationService;
+          const threadId = yield* createThread({
+            command: "image:create",
+            thread: "image:thread",
+          });
+          const attachments = [
+            {
+              type: "image" as const,
+              id: ChatAttachmentId.make("diagram"),
+              name: "diagram.png",
+              mimeType: "image/png",
+              sizeBytes: 10,
+            },
+          ];
+          yield* dispatchUserMessage({ command: "image:message", threadId, text, attachments });
+          const requestId = yield* armRegeneration({ command: "image:title", threadId });
+          const messageId = MessageId.make("image:message:message");
+          yield* service.execute({ threadId, requestId, kind: { type: "initial", messageId } });
+          const call = harness.generateThreadTitle.mock.calls[0]?.[0];
+          assert.equal(call?.message, titleSource);
+          assert.deepEqual(call?.attachments, attachments);
+          const projection = yield* threads.getThreadProjection(threadId);
+          assert.equal(projection.messages[0]?.text, text);
+          assert.equal(projection.thread.title, "Generated title");
+        }).pipe(Effect.provide(harness.layer));
+      }
+    }),
   );
 
   it.effect("arms and clears the regeneration marker through metadata commands", () =>

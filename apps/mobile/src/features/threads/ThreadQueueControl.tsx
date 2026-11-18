@@ -11,6 +11,7 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { resolveUserMessagePresentation } from "@t3tools/client-runtime/user-message";
+import { stripTalkModeInstruction } from "@t3tools/shared/composerContextReferences";
 import type { ChatAttachment, EnvironmentId, RunId, ThreadId } from "@t3tools/contracts";
 import { Atom } from "effect/reactivity";
 import { Image } from "expo-image";
@@ -181,7 +182,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
         {
           runId,
           messageId: entry.messageId,
-          originalText: entry.text,
+          originalText: stripTalkModeInstruction(entry.text),
           modelSelection: entry.message?.followsThreadSelection
             ? (appAtomRegistry.get(environmentThreadDetails.quietThreadAtom(target))?.projection
                 .thread.modelSelection ?? entry.run.modelSelection)

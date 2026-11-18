@@ -1,4 +1,5 @@
 import { MessageId, RunId } from "@t3tools/contracts";
+import { TALK_MODE_INSTRUCTION } from "@t3tools/shared/composerContextReferences";
 import { describe, expect, it } from "vite-plus/test";
 
 import type { TimelineEntry } from "../../session-logic";
@@ -40,6 +41,9 @@ describe("splitEditableUserMessage", () => {
     });
     expect(replaceEditableUserText(text, "  fix the other bug ")).toBe(
       "Ultrathink:\nfix the other bug\n\n<terminal_context>\n- Terminal 1:\nls\n</terminal_context>",
+    );
+    expect(replaceEditableUserText(`${TALK_MODE_INSTRUCTION}${text}`, "fix it")).toBe(
+      "Ultrathink:\nfix it\n\n<terminal_context>\n- Terminal 1:\nls\n</terminal_context>",
     );
   });
 

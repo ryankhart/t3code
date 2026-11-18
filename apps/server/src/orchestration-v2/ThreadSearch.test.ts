@@ -23,7 +23,10 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as SqlClient from "effect/sql/SqlClient";
 import { serializeAssistantCitation } from "@t3tools/shared/assistantCitations";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
+import {
+  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  TALK_MODE_INSTRUCTION,
+} from "@t3tools/shared/composerContextReferences";
 import { EXACT_PHRASE_GAP } from "@t3tools/shared/paletteSearch";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
@@ -945,6 +948,7 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
       const labeled = ThreadId.make("thread:heron-label");
       const addressOnly = ThreadId.make("thread:heron-address");
       const mention = ThreadId.make("thread:heron-mention");
+      const spoken = ThreadId.make("thread:heron-spoken");
       yield* createProject(project);
       yield* Effect.forEach(
         [
@@ -959,6 +963,8 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
             "user",
             String.raw`Fix [\_\_init\_\_.py](pkg/__init__.py) and [\_café\_.py](pkg/_caf%C3%A9_.py)`,
           ),
+          thread(spoken, project),
+          message(spoken, "heron-spoken", "user", `${TALK_MODE_INSTRUCTION}Avocado shipment`),
         ],
         projections.apply,
         { discard: true },
@@ -973,6 +979,23 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
         assert.deepEqual(
           mentions.matches.map((match) => [match.threadId, match.snippet]),
           [[mention, "Fix __init__.py and _café_.py"]],
+        );
+      }
+      // Talk mode's note isn't shown, so it neither matches nor shows in the snippet.
+      const said = yield* search.search({ query: "avocado" });
+      assert.deepEqual(
+        said.matches.map((match) => [match.threadId, match.snippet]),
+        [[spoken, "Avocado shipment"]],
+      );
+      for (const scope of [{}, { threadId: spoken }]) {
+        const inThread = yield* search.search({ query: "avocado", ...scope });
+        assert.deepEqual(
+          inThread.matches.map((match) => match.snippet),
+          ["Avocado shipment"],
+        );
+        assert.deepEqual(
+          (yield* search.search({ query: "spoken sentences", ...scope })).matches,
+          [],
         );
       }
     }),

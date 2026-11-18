@@ -1,5 +1,8 @@
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
-import { isAttachmentOnlyBootstrapPrompt } from "@t3tools/shared/composerContextReferences";
+import {
+  isAttachmentOnlyBootstrapPrompt,
+  stripTalkModeInstruction,
+} from "@t3tools/shared/composerContextReferences";
 import {
   CommandId,
   type ChatAttachment,
@@ -184,7 +187,9 @@ const make = Effect.gen(function* () {
           message === undefined
             ? { message: "", attachments: [] }
             : {
-                message: isAttachmentOnlyBootstrapPrompt(message.text) ? "" : message.text,
+                message: isAttachmentOnlyBootstrapPrompt(message.text)
+                  ? ""
+                  : stripTalkModeInstruction(message.text),
                 attachments: message.attachments,
               };
       } else {
