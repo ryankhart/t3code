@@ -429,9 +429,10 @@ export function useThreadActionMenu(input: {
     ) => ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
     source?: ContextMenuSource,
   ) => {
-    void (async () => {
+    if (threadRef === null) return undefined;
+    return (async () => {
       const api = readLocalApi();
-      if (!api || threadRef === null) return;
+      if (!api) return;
       const menu = readMenu();
       if (!menu) {
         failureToast(
