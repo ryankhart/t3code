@@ -9,7 +9,12 @@ import { PENDING, QUEUED, SILENT, UNANSWERED, type TalkAnswer, type TalkReply } 
 function setup() {
   const drafts = new Map<string, string>();
   const heard: Array<{ draftKey: string; onCommitted: () => void; onEnded: () => void }> = [];
-  const spoken: Array<{ reply: TalkReply; onEnd: (outcome: ReadAloudOutcome) => void }> = [];
+  const spoken: Array<{
+    reply: TalkReply;
+    onEnd: (outcome: ReadAloudOutcome) => void;
+    live: boolean;
+  }> = [];
+  const continued: Array<{ markdown: string; done: boolean }> = [];
   const releaseKeepAwake = vi.fn();
   let armed: TalkModeNote | null = null;
   const dependencies = {
@@ -58,7 +63,8 @@ function setup() {
       );
       drafts.set(overrides.draftKey, "");
     },
-    speak: (reply, onEnd) => void spoken.push({ reply, onEnd }),
+    speak: (reply, onEnd, live) => void spoken.push({ reply, onEnd, live }),
+    continueSpeaking: (reply, done) => void continued.push({ markdown: reply.markdown, done }),
     ...overrides,
   });
   /** What was said lands in the draft, as the dictation commits it. */
@@ -74,6 +80,7 @@ function setup() {
     drafts,
     heard,
     spoken,
+    continued,
     sent,
     seat,
     say,
@@ -89,6 +96,12 @@ const ready = (messageId: string, id: string): TalkAnswer => ({
   kind: "ready",
   messageId,
   reply: { id, markdown: `Reply ${id}.` },
+});
+
+const partial = (messageId: string, id: string, markdown: string): TalkAnswer => ({
+  kind: "partial",
+  messageId,
+  reply: { id, markdown },
 });
 
 describe("talk mode", () => {
@@ -132,6 +145,85 @@ describe("talk mode", () => {
     );
     expect(t.phase()).toBe("off");
     expect(t.spoken).toHaveLength(1);
+  });
+
+  it("reads the answer while it's written, from its first finished sentence", async () => {
+    const t = setup();
+    const thread = t.seat({ key: "env:t1", draftKey: "env:t1", busy: true });
+    t.talk.updateSeat(thread);
+    t.talk.start("env:t1");
+    t.say("Did the build pass?");
+    await t.saved();
+    vi.useFakeTimers();
+    try {
+      t.talk.updateSeat({ ...thread, answer: partial("m1", "a1", "The build") });
+      vi.advanceTimersByTime(TALK_SEAT_WAIT_MS);
+      expect(t.spoken).toEqual([]);
+      expect(t.phase()).toBe("waiting");
+    } finally {
+      vi.useRealTimers();
+    }
+
+    t.talk.updateSeat({ ...thread, answer: partial("m1", "a1", "The build passed. All") });
+    expect(t.spoken.map((s) => s.live)).toEqual([true]);
+    expect(t.talk.getState()).toMatchObject({ phase: "speaking", messageId: "m1" });
+    t.talk.updateSeat({
+      ...thread,
+      answer: partial("m1", "a1", "The build passed. All tests ran."),
+    });
+    t.talk.updateSeat({ ...thread, answer: ready("m1", "a1") });
+    expect(t.continued).toEqual([
+      { markdown: "The build passed. All tests ran.", done: false },
+      { markdown: "Reply a1.", done: true },
+    ]);
+    expect(t.talk.getState()).toMatchObject({ phase: "speaking", messageId: null });
+    // Once its last words went out, nothing on screen drops the reading.
+    t.talk.updateSeat({ ...thread, answer: null });
+    expect(t.dependencies.stopSpeaking).not.toHaveBeenCalled();
+
+    t.spoken[0]!.onEnd("finished");
+    expect(t.phase()).toBe("listening");
+    expect(t.spoken).toHaveLength(1);
+  });
+
+  it("drops a reading that turns out to be progress, then reads the real answer", async () => {
+    const t = setup();
+    const thread = t.seat({ key: "env:t1", draftKey: "env:t1", busy: true });
+    t.talk.updateSeat(thread);
+    t.talk.start("env:t1");
+    t.say("Check the logs");
+    await t.saved();
+    t.talk.updateSeat({ ...thread, answer: partial("m1", "a0", "Let me look. Opening") });
+    expect(t.spoken.map((s) => s.live)).toEqual([true]);
+
+    // A tool call followed, so those words were progress.
+    t.talk.updateSeat({ ...thread, answer: PENDING });
+    expect(t.dependencies.stopSpeaking).toHaveBeenCalledTimes(1);
+    t.spoken[0]!.onEnd("stopped");
+    expect(t.talk.getState()).toMatchObject({ phase: "waiting", messageId: "m1" });
+
+    t.talk.updateSeat({ ...thread, answer: ready("m1", "a1") });
+    expect(t.spoken.map((s) => [s.reply.id, s.live])).toEqual([
+      ["a0", true],
+      ["a1", false],
+    ]);
+  });
+
+  it("reads the answer from the start once it's done when the live reading fails", async () => {
+    const t = setup();
+    const thread = t.seat({ key: "env:t1", draftKey: "env:t1", busy: true });
+    t.talk.updateSeat(thread);
+    t.talk.start("env:t1");
+    t.say("Summarize it");
+    await t.saved();
+    t.talk.updateSeat({ ...thread, answer: partial("m1", "a1", "It works. Mostly") });
+    t.spoken[0]!.onEnd("failed");
+    expect(t.phase()).toBe("waiting");
+
+    t.talk.updateSeat({ ...thread, answer: partial("m1", "a1", "It works. Mostly fine.") });
+    expect(t.spoken).toHaveLength(1);
+    t.talk.updateSeat({ ...thread, answer: ready("m1", "a1") });
+    expect(t.spoken.map((s) => s.live)).toEqual([true, false]);
   });
 
   it("ignores an answer to another message", async () => {

@@ -99,25 +99,55 @@ async function request(url: string, init?: RequestInit): Promise<unknown> {
   return body;
 }
 
-/** Starts speech on the PC and returns the URL that streams its MP3. */
+/**
+ * Starts speech on the PC and returns its id and the URL that streams its MP3. `live` speech
+ * takes more text through `continueSpeech` while it plays.
+ */
 export async function requestSpeech(
   serverUrl: string,
-  input: { readonly text: string; readonly voice: string },
-): Promise<string> {
+  input: { readonly text: string; readonly voice: string; readonly live?: boolean },
+): Promise<{ readonly id: string; readonly url: string }> {
   const body = await request(`${serverUrl}/speak`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text: input.text, voice: input.voice }),
+    body: JSON.stringify({ text: input.text, voice: input.voice, live: input.live === true }),
   });
   if (
     typeof body !== "object" ||
     body === null ||
     !("url" in body) ||
-    typeof body.url !== "string"
+    typeof body.url !== "string" ||
+    !("id" in body) ||
+    typeof body.id !== "string"
   ) {
     throw new Error("The read-aloud server sent an unexpected answer.");
   }
-  return `${serverUrl}${body.url}`;
+  return { id: body.id, url: `${serverUrl}${body.url}` };
+}
+
+/** Gives live speech all its text so far (whole sentences), and says when that's everything. */
+export async function continueSpeech(
+  serverUrl: string,
+  id: string,
+  input: { readonly text: string; readonly done: boolean },
+): Promise<void> {
+  await request(`${serverUrl}/speak/${id}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * `text` up to its last finished sentence: the part live speech can read before the rest is
+ * written. A sentence counts as finished once more text follows it.
+ */
+export function finishedSentences(text: string): string {
+  let end = 0;
+  for (const match of text.matchAll(/[.!?…]["'”’)\]]*(?=\s+\S)|\n\s*\n/g)) {
+    end = match.index + match[0].length;
+  }
+  return text.slice(0, end).trim();
 }
 
 export async function fetchReadAloudVoices(serverUrl: string): Promise<ReadAloudVoice[]> {

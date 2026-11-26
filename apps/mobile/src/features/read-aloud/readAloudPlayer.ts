@@ -1,11 +1,13 @@
 import { createAudioPlayer, type AudioPlayer, type AudioStatus } from "expo-audio";
+import { msg } from "gt-react-native";
 import { useSyncExternalStore } from "react";
 import { markdownToSpeechText } from "@t3tools/shared/speechText";
 
 import * as Dialog from "../../components/ui/Dialog";
+import { m } from "../../i18n/messages";
 import { createAudioPlaybackSession, disposeAudioPlayer } from "../../lib/audioSession";
 import { stripOptionsCodeFences } from "../../lib/markdownOptionsFence";
-import { requestSpeech } from "./readAloudServer";
+import { continueSpeech, finishedSentences, requestSpeech } from "./readAloudServer";
 
 /**
  * Plays one reply at a time. The PC turns the whole reply into speech and
@@ -72,6 +74,7 @@ function finishReadAloud(outcome: ReadAloudOutcome) {
   stopCurrent = null;
   stop?.();
   ownerKey = null;
+  live = null;
   setState({ messageId: null, status: "idle", error: null });
   end?.(outcome);
 }
@@ -81,17 +84,57 @@ export function stopReadAloudFor(key: string) {
   if (ownerKey === key && state.status !== "idle") stopReadAloud();
 }
 
+/** A reply read while it's still being written: what the PC has so far, sent in order. */
+let live: {
+  readonly session: number;
+  readonly messageId: string;
+  readonly serverUrl: string;
+  sent: string;
+  done: boolean;
+  /** Resolves to the PC's id for the speech once the previous update reached it. */
+  chain: Promise<string>;
+} | null = null;
+
 function fail(current: number, messageId: string, error: unknown) {
   if (current !== session) return;
+  // Later failures of the same reading (a live update after the stream broke) stay silent.
+  session += 1;
   const end = takeEnd();
   const stop = stopCurrent;
   stopCurrent = null;
   stop?.();
   ownerKey = null;
+  const quiet = live?.session === current;
+  live = null;
   const message = error instanceof Error ? error.message : String(error);
   setState({ messageId, status: "idle", error: message });
-  Dialog.alert("Couldn't read aloud", message);
+  // Live speech that fails is read again from the start once the reply is done, by its caller.
+  if (!quiet) Dialog.alert(m(msg("Couldn't read aloud")), message);
   end?.("failed");
+}
+
+function speechText(markdown: string): string {
+  // The reply's options block shows as buttons, not text, so it isn't read.
+  return markdownToSpeechText(stripOptionsCodeFences(markdown));
+}
+
+/**
+ * Gives a reply started with `live` its latest text. Only finished sentences go to the PC until
+ * `done`, so what it already read never changes.
+ */
+export function continueReadAloud(messageId: string, markdown: string, done: boolean): void {
+  const current = live;
+  if (!current || current.messageId !== messageId || current.done) return;
+  const full = speechText(markdown);
+  const text = done ? full : finishedSentences(full);
+  if (!done && text.length <= current.sent.length) return;
+  current.sent = text;
+  current.done = done;
+  current.chain = current.chain.then(async (id) => {
+    await continueSpeech(current.serverUrl, id, { text, done });
+    return id;
+  });
+  current.chain.catch((error: unknown) => fail(current.session, messageId, error));
 }
 
 export async function startReadAloud(input: {
@@ -100,13 +143,15 @@ export async function startReadAloud(input: {
   readonly serverUrl: string | null;
   readonly voice: string;
   readonly ownerKey?: string | null;
+  /** The reply is still being written: read its finished sentences, then the rest as it comes. */
+  readonly live?: boolean;
   readonly onEnd?: (outcome: ReadAloudOutcome) => void;
 }): Promise<void> {
   stopReadAloud();
   const current = session;
   ownerKey = input.ownerKey ?? null;
-  // The reply's options block shows as buttons, not text, so it isn't read.
-  const text = markdownToSpeechText(stripOptionsCodeFences(input.markdown));
+  const full = speechText(input.markdown);
+  const text = input.live ? finishedSentences(full) : full;
   if (text.length === 0) {
     input.onEnd?.("empty");
     return;
@@ -126,8 +171,21 @@ export async function startReadAloud(input: {
   }
   setState({ messageId: input.messageId, status: "loading", error: null });
   let player: AudioPlayer | null = null;
+  const requested = requestSpeech(input.serverUrl, { text, voice: input.voice, live: input.live });
+  if (input.live) {
+    live = {
+      session: current,
+      messageId: input.messageId,
+      serverUrl: input.serverUrl,
+      sent: text,
+      done: false,
+      chain: requested.then((speech) => speech.id),
+    };
+    // Failures surface through the await below; this only stops an unhandled rejection.
+    live.chain.catch(() => {});
+  }
   try {
-    const audioUrl = await requestSpeech(input.serverUrl, { text, voice: input.voice });
+    const { url: audioUrl } = await requested;
     if (current !== session) return;
     const created = createAudioPlayer(audioUrl, { updateInterval: 250 });
     player = created;

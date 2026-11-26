@@ -131,7 +131,7 @@ import {
   ComposerDictationToolbar,
 } from "../voice-input/ComposerDictationControl";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
-import { startReadAloud } from "../read-aloud/readAloudPlayer";
+import { continueReadAloud, startReadAloud } from "../read-aloud/readAloudPlayer";
 import { useReadAloudServerUrl, useReadAloudVoice } from "../read-aloud/ReadAloudButton";
 import { TalkModeBar } from "../talk-mode/TalkModeBar";
 import type { TalkAnswer } from "../talk-mode/talkAnswer";
@@ -690,15 +690,18 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           connected: props.connectionState === "connected",
           answer: props.talkAnswer ?? null,
           send: (cancelled) => handleSend(undefined, cancelled),
-          speak: (reply, onEnd) =>
+          speak: (reply, onEnd, live) =>
             void startReadAloud({
               messageId: reply.id,
               markdown: renderAssistantCitationsAsText(reply.markdown),
               serverUrl: readAloudServerUrl,
               voice: readAloudVoice,
               ownerKey: composerOwnerKey,
+              live,
               onEnd,
             }),
+          continueSpeaking: (reply, done) =>
+            continueReadAloud(reply.id, renderAssistantCitationsAsText(reply.markdown), done),
         }
       : null,
   );

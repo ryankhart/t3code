@@ -62,13 +62,18 @@ describe("talkAnswer", () => {
       runs("completed"),
       { kind: "none", messageId: "m1" },
     ],
-    ["running", [asked, working], runs("running"), PENDING],
-    // Its run is over, so a reply that stops arriving can't hold talk mode forever.
+    ["running, with nothing said yet", [asked], runs("running"), PENDING],
+    [
+      "running, with words so far",
+      [asked, working],
+      runs("running"),
+      { kind: "partial", messageId: "m1", reply: { id: "a0", markdown: "Text a0." } },
+    ],
     [
       "finishing its last words",
       [asked, message("a1", "assistant", "r1", true)],
       runs("completed"),
-      SILENT,
+      { kind: "partial", messageId: "m1", reply: { id: "a1", markdown: "Text a1." } },
     ],
     [
       "answered, then a usage notice",
@@ -122,7 +127,12 @@ describe("talkAnswer", () => {
     ],
     ["interrupted", [asked, working], runs("interrupted"), { kind: "none", messageId: "m1" }],
     // A run passes through "waiting" at the end of every turn, while its checkpoint is taken.
-    ["finishing its turn", [asked, final], runs("waiting"), PENDING],
+    [
+      "finishing its turn",
+      [asked, final],
+      runs("waiting"),
+      { kind: "partial", messageId: "m1", reply: { id: "a1", markdown: "Text a1." } },
+    ],
     [
       "steered by someone else while it runs",
       [asked, working, message("s1", "user", "r1")],
