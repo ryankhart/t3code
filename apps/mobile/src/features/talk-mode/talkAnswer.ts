@@ -14,9 +14,11 @@ export type TalkAnswer =
   | { readonly kind: "unanswered" }
   /** Its run is waiting its turn behind another one. */
   | { readonly kind: "queued" }
-  /** Its run finished without a reply, or the reply hasn't fully reached this screen yet. */
+  /** Its run finished without a reply. */
   | { readonly kind: "silent" }
   | { readonly kind: "pending" }
+  /** The answer so far, while its run goes on or it's still arriving. */
+  | { readonly kind: "partial"; readonly messageId: string; readonly reply: TalkReply }
   | { readonly kind: "ready"; readonly messageId: string; readonly reply: TalkReply }
   /**
    * Its run stopped short (interrupted, failed, rolled back), someone steered it afterwards, or
@@ -71,8 +73,8 @@ export function talkAnswer(
   if (after.some((entry) => entry.type === "message" && entry.message.role === "user")) {
     return { kind: "none", messageId };
   }
-  if (!SETTLED.has(status)) return PENDING;
-  if (status !== "completed") return { kind: "none", messageId };
+  const settled = SETTLED.has(status);
+  if (settled && status !== "completed") return { kind: "none", messageId };
   let last: ThreadFeedEntry | undefined;
   for (const entry of after) {
     if (entry.type !== "message") {
@@ -87,9 +89,11 @@ export function talkAnswer(
     if (phase !== undefined && phase !== "final_answer") continue;
     last = entry;
   }
-  // Its run is over, so a reply still streaming here gets the same grace as a missing one.
-  if (last?.type !== "message" || last.message.streaming) return SILENT;
-  return { kind: "ready", messageId, reply: { id: last.message.id, markdown: last.message.text } };
+  if (last?.type !== "message") return settled ? SILENT : PENDING;
+  const reply = { id: last.message.id, markdown: last.message.text };
+  // While the run goes on, or the reply is still arriving, it may yet turn out to be progress.
+  if (!settled || last.message.streaming) return { kind: "partial", messageId, reply };
+  return { kind: "ready", messageId, reply };
 }
 
 function phaseOf(entry: Extract<ThreadFeedEntry, { type: "message" }>): string | undefined {

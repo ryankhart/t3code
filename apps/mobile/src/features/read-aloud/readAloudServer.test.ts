@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  finishedSentences,
   readAloudBaseUrl,
   readAloudVoiceLabel,
   resolveReadAloudServerUrl,
@@ -62,5 +63,19 @@ describe("voices", () => {
       "en-US-AvaNeural",
       "en-GB-SoniaNeural",
     ]);
+  });
+});
+
+describe("finishedSentences", () => {
+  it.each([
+    ["The build", ""],
+    ["The build passed.", ""],
+    ["The build passed. All", "The build passed."],
+    ['It said "done." Then', 'It said "done."'],
+    ["Really? Yes! And", "Really? Yes!"],
+    ["First paragraph\n\nSecond", "First paragraph"],
+    ["Version 2.5 is out", ""],
+  ])("keeps the finished part of %j", (text, expected) => {
+    expect(finishedSentences(text)).toBe(expected);
   });
 });

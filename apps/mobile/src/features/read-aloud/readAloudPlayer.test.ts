@@ -60,14 +60,19 @@ vi.mock("../../lib/audioSession", () => ({
 }));
 
 const speech = vi.hoisted(() => ({
-  requestSpeech: vi.fn(async (serverUrl: string) => `${serverUrl}/audio/1.mp3`),
+  requestSpeech: vi.fn(async (serverUrl: string) => ({ id: "1", url: `${serverUrl}/audio/1.mp3` })),
+  continueSpeech: vi.fn(async () => {}),
 }));
-vi.mock("./readAloudServer", () => speech);
+vi.mock("./readAloudServer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./readAloudServer")>()),
+  ...speech,
+}));
 
 const dialog = vi.hoisted(() => ({ alert: vi.fn() }));
 vi.mock("../../components/ui/Dialog", () => dialog);
 
 import {
+  continueReadAloud,
   getReadAloudState,
   READ_ALOUD_MAX_CHARS,
   startReadAloud,
@@ -87,6 +92,7 @@ beforeEach(() => {
   audio.players.length = 0;
   audio.sessionGranted = true;
   speech.requestSpeech.mockClear();
+  speech.continueSpeech.mockClear();
   dialog.alert.mockClear();
 });
 
@@ -175,6 +181,37 @@ describe("startReadAloud", () => {
     await startReadAloud(reply("m1"));
     audio.onRequested?.(false);
     expect(getReadAloudState()).toMatchObject({ messageId: null, status: "idle", error: null });
+  });
+
+  it("reads a reply while it's written, sending only finished sentences until it's done", async () => {
+    const onEnd = vi.fn();
+    await startReadAloud({ ...reply("m1", "First. Second"), live: true, onEnd });
+    expect(speech.requestSpeech).toHaveBeenCalledWith(expect.any(String), {
+      text: "First.",
+      voice: "en-US-AvaMultilingualNeural",
+      live: true,
+    });
+    continueReadAloud("m1", "First. Second and", false);
+    continueReadAloud("m1", "First. Second and more. Third", false);
+    continueReadAloud("m2", "Another reply. Entirely", false);
+    continueReadAloud("m1", "First. Second and more. Third.", true);
+    continueReadAloud("m1", "First. Second and more. Third. Late.", true);
+    await vi.waitFor(() => expect(speech.continueSpeech).toHaveBeenCalledTimes(2));
+    expect(speech.continueSpeech.mock.calls).toEqual([
+      ["http://100.64.0.10:3776", "1", { text: "First. Second and more.", done: false }],
+      ["http://100.64.0.10:3776", "1", { text: "First. Second and more. Third.", done: true }],
+    ]);
+    expect(onEnd).not.toHaveBeenCalled();
+  });
+
+  it("ends a live reading quietly when the PC refuses its next sentences", async () => {
+    speech.continueSpeech.mockRejectedValueOnce(new Error("The text changed."));
+    const onEnd = vi.fn();
+    await startReadAloud({ ...reply("m1", "First. Second"), live: true, onEnd });
+    continueReadAloud("m1", "First. Second. Third", false);
+    await vi.waitFor(() => expect(onEnd).toHaveBeenCalledExactlyOnceWith("failed"));
+    expect(dialog.alert).not.toHaveBeenCalled();
+    expect(audio.players[0]!.released).toBe(true);
   });
 
   it("needs a server address", async () => {

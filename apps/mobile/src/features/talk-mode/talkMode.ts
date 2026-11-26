@@ -28,7 +28,13 @@ export interface TalkSeat {
   readonly answer: TalkAnswer | null;
   /** Sends the draft, unless `cancelled()` at any point before it is queued. */
   readonly send: (cancelled: () => boolean) => Promise<void>;
-  readonly speak: (reply: TalkReply, onEnd: (outcome: ReadAloudOutcome) => void) => void;
+  /** `live`: the reply is still being written, and `continueSpeaking` brings the rest. */
+  readonly speak: (
+    reply: TalkReply,
+    onEnd: (outcome: ReadAloudOutcome) => void,
+    live: boolean,
+  ) => void;
+  readonly continueSpeaking: (reply: TalkReply, done: boolean) => void;
 }
 
 export interface TalkModeDependencies {
@@ -62,6 +68,9 @@ export interface TalkModeState {
  */
 export const TALK_SEAT_WAIT_MS = 10_000;
 
+/** Live speech starts once the answer has a finished sentence: one with more text after it. */
+const FINISHED_SENTENCE = /[.!?…]["'”’)\]*_]*\s+\S/;
+
 export class TalkMode {
   private readonly dependencies: TalkModeDependencies;
   private state: TalkModeState | null = null;
@@ -80,6 +89,12 @@ export class TalkMode {
   /** What the last dictation put in the draft: exactly what gets sent. */
   private said = "";
   private generation = 0;
+  /** The answer being read while it's still written, until its last words reach the reader. */
+  private live: { readonly replyId: string; done: boolean } | null = null;
+  /** An answer whose live reading failed: it is read from the start once it's done. */
+  private notLive: string | null = null;
+  /** Ignores how a reading ended once talk mode dropped it itself. */
+  private reading = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private releaseKeepAwake: (() => void) | null = null;
   private readonly listeners = new Set<() => void>();
@@ -115,6 +130,9 @@ export class TalkMode {
     const state = this.state;
     if (!state) return;
     this.generation += 1;
+    this.reading += 1;
+    this.live = null;
+    this.notLive = null;
     this.clearTimer();
     if (this.sending) this.dependencies.armNote(null);
     this.sending = false;
@@ -203,7 +221,8 @@ export class TalkMode {
     const seat = this.seat;
     if (!state || !seat || state.seatKey !== seat.key) return;
     if (state.phase === "sending") this.send(state, seat);
-    else if (state.phase === "waiting") this.awaitAnswer(state, seat);
+    else if (state.phase === "waiting" || (state.phase === "speaking" && this.live?.done === false))
+      this.awaitAnswer(state, seat);
   }
 
   private send(state: TalkModeState, seat: TalkSeat): void {
@@ -249,31 +268,73 @@ export class TalkMode {
       }, fail);
   }
 
-  private awaitAnswer(state: TalkModeState, seat: TalkSeat): void {
+  private awaitAnswer(waitingState: TalkModeState, seat: TalkSeat): void {
+    let state = waitingState;
     const answer = seat.answer;
     if (answer?.kind === "none" && answer.messageId === state.messageId) return this.stop();
     if (seat.needsYou) return this.stop();
-    if (answer?.kind !== "ready" || answer.messageId !== state.messageId) {
+    const reply =
+      (answer?.kind === "ready" || answer?.kind === "partial") &&
+      answer.messageId === state.messageId
+        ? answer.reply
+        : null;
+    const done = answer?.kind === "ready";
+    const live = this.live;
+    if (live && reply?.id === live.replyId) {
+      if (!live.done) seat.continueSpeaking(reply, done);
+      if (done) {
+        live.done = true;
+        this.setState({ ...state, messageId: null });
+      }
+      return;
+    }
+    if (live) {
+      // What was read turned out to be progress (a tool call followed it) or an earlier draft.
+      this.reading += 1;
+      this.live = null;
+      this.dependencies.stopSpeaking();
+      state = { ...state, phase: "waiting" };
+      this.setState(state);
+    }
+    const speakable =
+      reply !== null &&
+      (done || (reply.id !== this.notLive && FINISHED_SENTENCE.test(reply.markdown)));
+    if (!reply || !speakable) {
       // Waits as long as its run is going, or is queued behind another run. Anything else (an
       // outbox holding it, a cancelled queue entry, a silent end, a lost connection) gives up.
-      const going = answer?.kind === "pending" || (answer?.kind === "queued" && seat.busy);
+      const going =
+        answer?.kind === "pending" ||
+        answer?.kind === "partial" ||
+        (answer?.kind === "queued" && seat.busy);
       if (seat.connected && going) this.clearTimer();
       else if (this.timer === null) this.startTimer();
       return;
     }
     this.clearTimer();
-    const generation = this.generation;
-    this.setState({ ...state, phase: "speaking", messageId: null });
-    seat.speak(answer.reply, (outcome) => {
-      if (generation !== this.generation || this.state?.phase !== "speaking") return;
-      // A reply stopped by hand, replaced by another, or with nothing to say ends it.
-      if (outcome !== "finished") return this.end(false);
-      const next = this.seat;
-      const draftKey = next?.draftKey ?? state.draftKey;
-      // Dictation would add to anything typed meanwhile and send it all.
-      if (!this.dependencies.draftIsEmpty(draftKey) || next?.needsYou) return this.end(false);
-      this.listen(draftKey, next?.key ?? null);
-    });
+    const reading = (this.reading += 1);
+    this.live = done ? null : { replyId: reply.id, done: false };
+    this.setState({ ...state, phase: "speaking", messageId: done ? null : state.messageId });
+    seat.speak(reply, (outcome) => this.spoken(reading, reply.id, outcome), !done);
+  }
+
+  private spoken(reading: number, replyId: string, outcome: ReadAloudOutcome): void {
+    const state = this.state;
+    if (reading !== this.reading || state?.phase !== "speaking") return;
+    const live = this.live;
+    this.live = null;
+    if (outcome === "failed" && live && !live.done && state.messageId !== null) {
+      // The live reading broke off (the PC lost the thread of the text): read it again once done.
+      this.notLive = replyId;
+      this.setState({ ...state, phase: "waiting" });
+      return this.advance();
+    }
+    // A reply stopped by hand, replaced by another, or with nothing to say ends it.
+    if (outcome !== "finished") return this.end(false);
+    const next = this.seat;
+    const draftKey = next?.draftKey ?? state.draftKey;
+    // Dictation would add to anything typed meanwhile and send it all.
+    if (!this.dependencies.draftIsEmpty(draftKey) || next?.needsYou) return this.end(false);
+    this.listen(draftKey, next?.key ?? null);
   }
 
   private startTimer(): void {
