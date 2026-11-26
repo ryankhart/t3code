@@ -294,7 +294,10 @@ export function FileMarkdownPreview(props: {
         ItemSeparatorComponent={ChunkSeparator}
         ListHeaderComponent={
           <View className="mx-auto w-full max-w-[760px]">
-            <MarkdownFrontmatterTable markdown={props.markdown} textStyle={styles.nativeTextStyle} />
+            <MarkdownFrontmatterTable
+              markdown={props.markdown}
+              textStyle={styles.nativeTextStyle}
+            />
           </View>
         }
         renderItem={({ item }) => (

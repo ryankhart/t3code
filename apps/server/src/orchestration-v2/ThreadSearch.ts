@@ -636,7 +636,9 @@ export const make = Effect.gen(function* () {
     const matchMessage = messageMatcher(input.query);
     for (const row of rows) {
       // Webhook URL tokens are withheld before matching, so a snippet cut inside the URL has none.
-      const text = withoutWebhookUrlToken(stripTalkModeInstruction(row.text).replace(MARKDOWN_LINK, "$1"));
+      const text = withoutWebhookUrlToken(
+        stripTalkModeInstruction(row.text).replace(MARKDOWN_LINK, "$1"),
+      );
       const match = matchMessage(text);
       if (match === null) continue;
       const hit = { row, text, ...match };

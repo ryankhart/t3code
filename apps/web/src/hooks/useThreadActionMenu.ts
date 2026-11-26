@@ -152,28 +152,31 @@ export function useThreadActionMenu(input: {
       titleRegeneration: configLoaded,
     };
     const snoozePresets = resolveSnoozePresets(now, timestampFormat, threadRef.environmentId);
-    const items = buildThreadActionMenuItems({
-      canOperate: readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope),
-      canTriage: threadTriagePermitted(threadRef.environmentId),
-      canFind: onFind !== undefined,
-      canRename: onStartRename !== undefined,
-      branch: thread.branch ?? null,
-      projectFilter: readSidebarProjectFilter()?.describe(thread) ?? null,
-      isPinned: thread.pinnedAt != null,
-      isSettled: supports.settlement && thread.settledOverride === "settled",
-      autoSettleEnabled: thread.autoSettleDisabledAt == null,
-      isSnoozed: supports.snooze && effectiveSnoozed(thread, { now: now.toISOString() }),
-      canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
-      isRegeneratingTitle: thread.titleRegeneration != null,
-      isRunning: !threadRuntimeCanArchive(thread.runtime),
-      hasCompletedRun: thread.latestRun?.completedAt != null,
-      supports,
-      snoozePresets,
-      canShareWithGuest,
-      canTurnIntoProject: canTurnThreadIntoProject(threadRef),
-      moveTargets: threadMoveTargets(threadRef),
-      canOpenProjectSettings: findThreadProject(thread) !== undefined,
-    }, m);
+    const items = buildThreadActionMenuItems(
+      {
+        canOperate: readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope),
+        canTriage: threadTriagePermitted(threadRef.environmentId),
+        canFind: onFind !== undefined,
+        canRename: onStartRename !== undefined,
+        branch: thread.branch ?? null,
+        projectFilter: readSidebarProjectFilter()?.describe(thread) ?? null,
+        isPinned: thread.pinnedAt != null,
+        isSettled: supports.settlement && thread.settledOverride === "settled",
+        autoSettleEnabled: thread.autoSettleDisabledAt == null,
+        isSnoozed: supports.snooze && effectiveSnoozed(thread, { now: now.toISOString() }),
+        canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
+        isRegeneratingTitle: thread.titleRegeneration != null,
+        isRunning: !threadRuntimeCanArchive(thread.runtime),
+        hasCompletedRun: thread.latestRun?.completedAt != null,
+        supports,
+        snoozePresets,
+        canShareWithGuest,
+        canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+        moveTargets: threadMoveTargets(threadRef),
+        canOpenProjectSettings: findThreadProject(thread) !== undefined,
+      },
+      m,
+    );
     return { items, run: (action: ThreadActionMenuId) => runMenuAction(action, snoozePresets) };
   };
 
@@ -201,10 +204,7 @@ export function useThreadActionMenu(input: {
       return;
     }
     if (action.startsWith("move-to-project:")) {
-      const result = await moveThreadToProject(
-        threadRef,
-        action.slice("move-to-project:".length),
-      );
+      const result = await moveThreadToProject(threadRef, action.slice("move-to-project:".length));
       if (result._tag === "Success") {
         toastManager.add({
           type: "success",
@@ -283,9 +283,7 @@ export function useThreadActionMenu(input: {
         return;
       }
       case "unsettle":
-        await reportFailure(m(msg("Failed to un-settle thread")), () =>
-          unsettleThread(threadRef),
-        );
+        await reportFailure(m(msg("Failed to un-settle thread")), () => unsettleThread(threadRef));
         return;
       case "unsnooze":
         await reportFailure(m(msg("Failed to wake thread")), () => unsnoozeThread(threadRef));

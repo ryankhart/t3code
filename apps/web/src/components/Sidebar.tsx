@@ -2663,25 +2663,30 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const draftMenu = useDraftActionMenu();
   const handleDraftContextMenu = useStableCallback(
     (draftId: DraftId, position: { x: number; y: number }, source: ContextMenuSource) =>
-      draftMenu.openMenu(draftId, position, (session) => {
-        const projectGroup = projectGroupsRef.current.find((group) =>
-          group.memberProjectRefs.some(
-            (ref) =>
-              ref.environmentId === session.environmentId && ref.projectId === session.projectId,
-          ),
-        );
-        return {
-          workspaceRoot: projectByKey.get(`${session.environmentId}:${session.projectId}`)
-            ?.workspaceRoot,
-          openProjectSettings: projectGroup
-            ? () =>
-                openProjectSettings(projectGroup, {
-                  environmentId: session.environmentId,
-                  projectId: session.projectId,
-                })
-            : undefined,
-        };
-      }, source),
+      draftMenu.openMenu(
+        draftId,
+        position,
+        (session) => {
+          const projectGroup = projectGroupsRef.current.find((group) =>
+            group.memberProjectRefs.some(
+              (ref) =>
+                ref.environmentId === session.environmentId && ref.projectId === session.projectId,
+            ),
+          );
+          return {
+            workspaceRoot: projectByKey.get(`${session.environmentId}:${session.projectId}`)
+              ?.workspaceRoot,
+            openProjectSettings: projectGroup
+              ? () =>
+                  openProjectSettings(projectGroup, {
+                    environmentId: session.environmentId,
+                    projectId: session.projectId,
+                  })
+              : undefined,
+          };
+        },
+        source,
+      ),
   );
 
   const handleThreadContextMenu = useStableCallback(
@@ -3091,9 +3096,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       void handleNewThread(scopedProjectRef);
       return;
     }
-    if (
-      shouldCreateNewThreadInCurrentProject(shiftKey, scopeGroups.length, projectGroups.length)
-    ) {
+    if (shouldCreateNewThreadInCurrentProject(shiftKey, scopeGroups.length, projectGroups.length)) {
       if (isMobile) setOpenMobile(false);
       // With no current or open project, such as when every project is archived, pick one.
       void startNewThreadFromContext({
