@@ -568,10 +568,11 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       { leading: chip.kind === "command" },
     );
     onChangeDraftMessage(next);
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.setSelection({ start: next.length, end: next.length });
-    });
+    // The caret rides in the same controlled update as the text. A separate setSelection could
+    // reach the editor before the new text and move the caret in the old one, which makes the
+    // editor reject the update as stale and drop the pick.
+    composerMenu.onSelectionChange({ start: next.length, end: next.length });
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   // A pending sheet presentation or focus restore has no composer left to act on.
