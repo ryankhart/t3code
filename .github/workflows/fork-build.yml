@@ -101,7 +101,7 @@ jobs:
           export GIT_SEQUENCE_EDITOR="node '$RUNNER_TEMP/now-in-mtcode.mjs' '$RUNNER_TEMP/now-in-mtcode.txt' '$LATEST_TAG'"
           if ! git rebase -i --onto "$LATEST_TAG" "$BASE_TAG" main; then
             npm install -g @anthropic-ai/claude-code >/dev/null
-            for round in $(seq 1 40); do
+            for round in $(seq 1 100); do
               [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ] || break
               # The fork's README replaces MT Code's, so its side always wins ("theirs" mid-rebase).
               if git diff --name-only --diff-filter=U | grep -qx README.md; then
