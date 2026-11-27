@@ -3170,6 +3170,14 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const { themeAppearance } = useAppearancePreferences();
   const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fieldReveal = useRef<{ rowKey: string; cancel: () => void } | null>(null);
+  const [htmlRenderFieldFocused, setHtmlRenderFieldFocused] = useState(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the keyboard a page field opened has closed, so the composer lifts the feed again (a new tap on the field re-reports it)
+  useEffect(() => {
+    const hidden = KeyboardEvents.addListener("keyboardDidHide", () =>
+      setHtmlRenderFieldFocused(false),
+    );
+    return () => hidden.remove();
+  }, []);
   const viewportRef = useRef<ViewInstance>(null);
   const headerMaterialVisibleRef = useRef(false);
   const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions();
@@ -4087,6 +4095,10 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     if (measure === null && fieldReveal.current?.rowKey !== rowKey) return;
     fieldReveal.current?.cancel();
     fieldReveal.current = null;
+    // A keyboard opened without a lift must also close without one, or the feed jumps up by the
+    // keyboard's height as it closes; keyboardDidHide ends it then.
+    if (measure !== null) setHtmlRenderFieldFocused(true);
+    else if (!KeyboardController.isVisible() && !keyboardMoving) setHtmlRenderFieldFocused(false);
     if (measure === null) return;
     let cancelled = false;
     const reveal = async () => {
@@ -4106,11 +4118,15 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           contentInsetEndAdjustment.get() +
           FLOATING_WORKING_CONTROL_COVERAGE;
         const visibleBottom = windowHeight - covered - HTML_RENDER_FIELD_GAP;
-        // A field taller than the space above the keyboard keeps its top, where typing starts, in view.
+        // A field taller than the space above the keyboard keeps its top, where typing starts, in
+        // view, and a field above the feed's top (say the list lifted anyway) comes back down.
         const room = field.top - viewportTop - anchorTopInset - HTML_RENDER_FIELD_GAP;
-        const shift = Math.min(field.bottom - visibleBottom, room);
-        if (shift <= 0) return;
-        list.scrollToOffset({ offset: list.getState().scroll + shift, animated: true });
+        const shift = Math.min(Math.max(0, field.bottom - visibleBottom), room);
+        if (shift === 0) return;
+        list.scrollToOffset({
+          offset: Math.max(0, list.getState().scroll + shift),
+          animated: true,
+        });
       });
     };
     if (keyboardSettledOpen()) {
@@ -4498,7 +4514,15 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             // Android scrolls a tapped selectable message into view when it takes focus, which reads
             // as a user scroll and drops end following before the keyboard closes.
             scrollsChildToFocus={false}
-            keyboardLiftBehavior={props.sendingWithKeyboard ? "persistent" : "whenAtEnd"}
+            // Lifting the whole feed by the keyboard's height at the end is for the composer; it
+            // pushes a ballot's note field in the upper part of the screen off the top.
+            keyboardLiftBehavior={
+              htmlRenderFieldFocused
+                ? "never"
+                : props.sendingWithKeyboard
+                  ? "persistent"
+                  : "whenAtEnd"
+            }
             // Seed the initial viewport before native onLayout.
             {...(viewportHeight > 0 && viewportWidth > 0
               ? { estimatedListSize: { height: viewportHeight, width: viewportWidth } }
