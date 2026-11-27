@@ -2,7 +2,10 @@ import type { AppStateStatus } from "react-native";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  checkApkUpdateNow,
+  getApkUpdateStatus,
   installApkUpdateChecks,
+  installApkUpdateNow,
   pickApkUpdate,
   type ApkUpdate,
   type ApkUpdateEnvironment,
@@ -123,7 +126,7 @@ describe("installApkUpdateChecks", () => {
     expect(environment.updater.commit).not.toHaveBeenCalled();
 
     emit("background");
-    await vi.waitFor(() => expect(environment.updater.commit).toHaveBeenCalledWith(42));
+    await vi.waitFor(() => expect(environment.updater.commit).toHaveBeenCalledWith(42, false));
     const flushed = vi.mocked(environment.flushPendingWrites).mock.invocationCallOrder[0]!;
     const committed = vi.mocked(environment.updater.commit).mock.invocationCallOrder[0]!;
     expect(flushed).toBeLessThan(committed);
@@ -195,5 +198,69 @@ describe("installApkUpdateChecks", () => {
     emit("active");
     await vi.waitFor(() => expect(environment.fetchLatestRelease).toHaveBeenCalledTimes(2));
     expect(environment.download).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the Settings update button", () => {
+  it("checks on any network, then downloads, installs and asks to reopen on the second tap", async () => {
+    const { environment } = makeEnvironment({ isMetered: vi.fn(() => true) });
+    const dispose = installApkUpdateChecks(environment);
+    await checkApkUpdateNow();
+    expect(getApkUpdateStatus()).toMatchObject({
+      kind: "available",
+      update: { version: "0.1.5907" },
+    });
+    expect(environment.download).not.toHaveBeenCalled();
+
+    void installApkUpdateNow();
+    await vi.waitFor(() => expect(environment.updater.commit).toHaveBeenCalledWith(42, true));
+    expect(getApkUpdateStatus()).toMatchObject({ kind: "installing" });
+    const flushed = vi.mocked(environment.flushPendingWrites).mock.invocationCallOrder[0]!;
+    const committed = vi.mocked(environment.updater.commit).mock.invocationCallOrder[0]!;
+    expect(flushed).toBeLessThan(committed);
+    dispose();
+  });
+
+  it("says so when the installed build is the newest", async () => {
+    const { environment } = makeEnvironment({ isMetered: vi.fn(() => true) });
+    environment.fetchLatestRelease.mockResolvedValue(
+      release([apkAsset("T3-Code-Fork-0.1.5906.apk")]),
+    );
+    const dispose = installApkUpdateChecks(environment);
+    await checkApkUpdateNow();
+    expect(getApkUpdateStatus()).toEqual({ kind: "current" });
+    dispose();
+  });
+
+  it("sends the user to the install permission once and finishes when they come back", async () => {
+    let allowed = false;
+    const { environment, emit } = makeEnvironment({
+      isMetered: vi.fn(() => true),
+      canInstall: vi.fn(() => allowed),
+    });
+    const dispose = installApkUpdateChecks(environment);
+    await checkApkUpdateNow();
+    await installApkUpdateNow();
+    expect(getApkUpdateStatus()).toMatchObject({ kind: "permission" });
+    expect(environment.updater.openInstallPermissionSettings).toHaveBeenCalledTimes(1);
+    expect(environment.updater.commit).not.toHaveBeenCalled();
+
+    emit("background");
+    allowed = true;
+    emit("active");
+    await vi.waitFor(() => expect(environment.updater.commit).toHaveBeenCalledWith(42, true));
+    expect(environment.download).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("shows why it failed so the next tap can retry", async () => {
+    const { environment } = makeEnvironment({ isMetered: vi.fn(() => true) });
+    environment.fetchLatestRelease.mockRejectedValueOnce(new Error("GitHub answered 403."));
+    const dispose = installApkUpdateChecks(environment);
+    await checkApkUpdateNow();
+    expect(getApkUpdateStatus()).toEqual({ kind: "failed", message: "GitHub answered 403." });
+    await checkApkUpdateNow();
+    expect(getApkUpdateStatus()).toMatchObject({ kind: "available" });
+    dispose();
   });
 });
