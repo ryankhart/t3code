@@ -40,6 +40,7 @@ import type { SettingsPageTarget } from "./components/settings-page-targets";
 import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilterHeader";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import { filterSettingsSections } from "./settings-search";
+import { useApkUpdateRow } from "./useApkUpdateRow";
 import { usePaneRole } from "../../components/ui/Pane";
 import { useGT, useMessages } from "gt-react-native";
 
@@ -296,6 +297,7 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
 function useSettingsIndexSections(): SettingsListSection[] {
   const gt = useGT();
   const { selectedTargets, projectGroups, selectedProjectKey } = useSettingsEnvironmentFilter();
+  const apkUpdateRow = useApkUpdateRow();
   const noServerTargets = selectedTargets.length === 0;
   const selectedProject = projectGroups.find((group) => group.key === selectedProjectKey);
   const scopedProjectMembers =
@@ -363,6 +365,7 @@ function useSettingsIndexSections(): SettingsListSection[] {
       rows: [
         serverPage("SettingsEnvironmentMaintenance", "arrow.clockwise", gt("Maintenance")),
         page("SettingsLabs", "flask", gt("Labs")),
+        ...(apkUpdateRow ? [apkUpdateRow] : []),
         page("SettingsAbout", "info.circle", gt("About")),
         page("SettingsArchive", "archivebox", gt("Archive")),
       ],

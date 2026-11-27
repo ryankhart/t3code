@@ -46,6 +46,21 @@ class InstallResultReceiver : BroadcastReceiver() {
   }
 }
 
+private const val PREFS = "t3-apk-updater"
+private const val REOPEN_AFTER_UPDATE = "reopenAfterUpdate"
+
+/** Starts the new version after an update the user asked for in Settings. */
+class UpdatedReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+    val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    if (!prefs.getBoolean(REOPEN_AFTER_UPDATE, false)) return
+    prefs.edit().remove(REOPEN_AFTER_UPDATE).apply()
+    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+    runCatching { context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+  }
+}
+
 class T3ApkUpdaterModule : Module() {
   private val context: Context
     get() = requireNotNull(appContext.reactContext) { "The app isn't ready." }
@@ -117,7 +132,11 @@ class T3ApkUpdaterModule : Module() {
 
     // On success Android replaces the app and ends this process, so the promise only
     // settles for a failure or when Android still wants a tap.
-    AsyncFunction("commit") { sessionId: Int, promise: Promise ->
+    AsyncFunction("commit") { sessionId: Int, reopen: Boolean, promise: Promise ->
+      context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean(REOPEN_AFTER_UPDATE, reopen)
+        .commit()
       val intent = Intent(context, InstallResultReceiver::class.java).setPackage(context.packageName)
       val flags =
         PendingIntent.FLAG_UPDATE_CURRENT or

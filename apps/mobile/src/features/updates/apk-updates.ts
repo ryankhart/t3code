@@ -10,7 +10,8 @@ interface ApkUpdaterModule {
   isMetered(): boolean;
   openInstallPermissionSettings(): boolean;
   stage(fileUri: string, sha256: string): Promise<number>;
-  commit(sessionId: number): Promise<"pending_user_action" | "success">;
+  /** `reopen` starts the new version once Android has replaced this one. */
+  commit(sessionId: number, reopen: boolean): Promise<"pending_user_action" | "success">;
   confirmPendingInstall(): boolean;
 }
 
@@ -97,6 +98,19 @@ export function installApkUpdateChecks(
   let busy = false;
   let awaitingConfirmation = false;
   let lastCheckAtMs = Number.NEGATIVE_INFINITY;
+  let installWhenAllowed = false;
+
+  const stageUpdate = async (update: ApkUpdate) => {
+    if (staged?.update.versionCode === update.versionCode) return staged;
+    const file = await environment.download(update);
+    try {
+      if (file.size !== update.size) throw new Error("The update download was incomplete.");
+      staged = { sessionId: await updater.stage(file.uri, update.sha256), update };
+      return staged;
+    } finally {
+      file.dispose();
+    }
+  };
 
   const check = async () => {
     if (busy) return;
@@ -106,14 +120,9 @@ export function installApkUpdateChecks(
       if (updater.isMetered()) return;
       const update = pickApkUpdate(await environment.fetchLatestRelease(), updater.versionCode());
       if (!update || update.versionCode <= skippedVersionCode) return;
-      if (staged?.update.versionCode !== update.versionCode) {
-        const file = await environment.download(update);
-        try {
-          if (file.size !== update.size) throw new Error("The update download was incomplete.");
-          staged = { sessionId: await updater.stage(file.uri, update.sha256), update };
-        } finally {
-          file.dispose();
-        }
+      await stageUpdate(update);
+      if (status.kind === "idle" || status.kind === "current") {
+        setStatus({ kind: "available", update });
       }
       if (!updater.canInstall() && askedVersionCode !== update.versionCode) {
         askedVersionCode = update.versionCode;
@@ -135,12 +144,59 @@ export function installApkUpdateChecks(
       if (!(await environment.isSafeToInstall())) return;
       // A commit uses up the session, whatever happens next.
       staged = null;
-      const result = await updater.commit(target.sessionId);
+      const result = await updater.commit(target.sessionId, false);
       if (result === "pending_user_action") awaitingConfirmation = true;
       skippedVersionCode = target.update.versionCode;
     } catch (cause) {
       skippedVersionCode = target.update.versionCode;
       environment.warn("Could not install the app update", cause);
+    } finally {
+      busy = false;
+    }
+  };
+
+  // The Settings button: works on any network and installs right away, since the user asked.
+  const checkNow = async () => {
+    if (busy) return;
+    busy = true;
+    lastCheckAtMs = environment.now();
+    setStatus({ kind: "checking" });
+    try {
+      const update = pickApkUpdate(await environment.fetchLatestRelease(), updater.versionCode());
+      setStatus(update ? { kind: "available", update } : { kind: "current" });
+    } catch (cause) {
+      setStatus({ kind: "failed", message: describeFailure(cause) });
+    } finally {
+      busy = false;
+    }
+  };
+
+  const installNow = async () => {
+    const current = status;
+    if (busy || (current.kind !== "available" && current.kind !== "permission")) return;
+    const { update } = current;
+    busy = true;
+    try {
+      setStatus({ kind: "downloading", update });
+      const target = await stageUpdate(update);
+      if (!updater.canInstall()) {
+        installWhenAllowed = true;
+        setStatus({ kind: "permission", update });
+        updater.openInstallPermissionSettings();
+        return;
+      }
+      installWhenAllowed = false;
+      setStatus({ kind: "installing", update });
+      await environment.flushPendingWrites();
+      staged = null;
+      const result = await updater.commit(target.sessionId, true);
+      // Success ends this process, so only Android's own prompt or a failure gets here.
+      if (result === "pending_user_action") {
+        updater.confirmPendingInstall();
+        setStatus({ kind: "available", update });
+      }
+    } catch (cause) {
+      setStatus({ kind: "failed", message: describeFailure(cause) });
     } finally {
       busy = false;
     }
@@ -157,10 +213,64 @@ export function installApkUpdateChecks(
       updater.confirmPendingInstall();
       return;
     }
+    if (installWhenAllowed && status.kind === "permission" && updater.canInstall()) {
+      void installNow();
+      return;
+    }
     if (environment.now() - lastCheckAtMs >= RECHECK_AFTER_MS) void check();
   });
+  controls = { check: checkNow, install: installNow };
   void check();
-  return unsubscribe;
+  return () => {
+    controls = null;
+    unsubscribe();
+  };
+}
+
+export type ApkUpdateStatus =
+  | { readonly kind: "idle" | "checking" | "current" }
+  | {
+      readonly kind: "available" | "downloading" | "permission" | "installing";
+      readonly update: ApkUpdate;
+    }
+  | { readonly kind: "failed"; readonly message: string };
+
+let status: ApkUpdateStatus = { kind: "idle" };
+const statusListeners = new Set<() => void>();
+let controls: {
+  readonly check: () => Promise<void>;
+  readonly install: () => Promise<void>;
+} | null = null;
+
+function setStatus(next: ApkUpdateStatus) {
+  status = next;
+  for (const listener of statusListeners) listener();
+}
+
+function describeFailure(cause: unknown): string {
+  return cause instanceof Error && cause.message ? cause.message : String(cause);
+}
+
+export function getApkUpdateStatus(): ApkUpdateStatus {
+  return status;
+}
+
+export function subscribeApkUpdateStatus(listener: () => void): () => void {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+/** Only the fork's release APK can update itself; other builds have no button. */
+export function isApkUpdateButtonAvailable(): boolean {
+  return controls !== null;
+}
+
+export function checkApkUpdateNow(): Promise<void> {
+  return controls?.check() ?? Promise.resolve();
+}
+
+export function installApkUpdateNow(): Promise<void> {
+  return controls?.install() ?? Promise.resolve();
 }
 
 function createDefaultEnvironment(): ApkUpdateEnvironment | null {
