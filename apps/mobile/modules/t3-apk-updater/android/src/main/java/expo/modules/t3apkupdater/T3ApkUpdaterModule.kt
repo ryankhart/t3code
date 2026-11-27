@@ -1,5 +1,8 @@
 package expo.modules.t3apkupdater
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
@@ -49,16 +52,68 @@ class InstallResultReceiver : BroadcastReceiver() {
 private const val PREFS = "t3-apk-updater"
 private const val REOPEN_AFTER_UPDATE = "reopenAfterUpdate"
 
-/** Starts the new version after an update the user asked for in Settings. */
+private const val UPDATED_CHANNEL = "app-updates"
+
+/** Brings the new version up after an update the user asked for in Settings. */
 class UpdatedReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
     val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     if (!prefs.getBoolean(REOPEN_AFTER_UPDATE, false)) return
     prefs.edit().remove(REOPEN_AFTER_UPDATE).apply()
-    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
-    runCatching { context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    val launch =
+      context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) ?: return
+    // Android blocks activity starts from the background unless the app may draw over others
+    // (granted with the digital assistant role); otherwise a tap on a notification opens it.
+    if (Build.VERSION.SDK_INT < 29 || Settings.canDrawOverlays(context)) {
+      if (runCatching { context.startActivity(launch) }.isSuccess) return
+    }
+    notifyUpdated(context, launch)
   }
+
+  private fun notifyUpdated(context: Context, launch: Intent) {
+    val manager = context.getSystemService(NotificationManager::class.java) ?: return
+    if (Build.VERSION.SDK_INT >= 26) {
+      manager.createNotificationChannel(
+        NotificationChannel(UPDATED_CHANNEL, "App updates", NotificationManager.IMPORTANCE_HIGH)
+      )
+    }
+    val code = installedVersionCode(context)
+    val version = "${code / 10_000_000}.${code % 10_000_000 / 100_000}.${code % 100_000}"
+    val open =
+      PendingIntent.getActivity(
+        context,
+        0,
+        launch,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+      )
+    val builder =
+      if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, UPDATED_CHANNEL)
+      else @Suppress("DEPRECATION") Notification.Builder(context)
+    val icon =
+      context.resources.getIdentifier("notification_icon", "drawable", context.packageName)
+        .takeIf { it != 0 } ?: context.applicationInfo.icon
+    runCatching {
+      manager.notify(
+        UPDATED_CHANNEL,
+        1,
+        builder
+          .setSmallIcon(icon)
+          .setContentTitle("Updated to $version")
+          .setContentText("Tap to open T3 Code Fork.")
+          .setContentIntent(open)
+          .setAutoCancel(true)
+          .build()
+      )
+    }
+  }
+}
+
+private fun installedVersionCode(context: Context): Long {
+  val info = context.packageManager.getPackageInfo(context.packageName, 0)
+  return if (Build.VERSION.SDK_INT >= 28) info.longVersionCode
+  else @Suppress("DEPRECATION") info.versionCode.toLong()
 }
 
 class T3ApkUpdaterModule : Module() {
