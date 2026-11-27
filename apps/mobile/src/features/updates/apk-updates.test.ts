@@ -2,6 +2,7 @@ import type { AppStateStatus } from "react-native";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  apkVersionName,
   checkApkUpdateNow,
   getApkUpdateStatus,
   installApkUpdateChecks,
@@ -262,5 +263,33 @@ describe("the Settings update button", () => {
     await checkApkUpdateNow();
     expect(getApkUpdateStatus()).toMatchObject({ kind: "available" });
     dispose();
+  });
+
+  it("shows the launch check's download in the row, even when tapped mid-check", async () => {
+    let finishDownload: () => void = () => undefined;
+    const { environment } = makeEnvironment();
+    environment.download.mockImplementationOnce(
+      (update: ApkUpdate) =>
+        new Promise((resolve) => {
+          finishDownload = () =>
+            resolve({
+              uri: `file:///cache/${update.fileName}`,
+              size: update.size,
+              dispose: vi.fn(),
+            });
+        }),
+    );
+    const dispose = installApkUpdateChecks(environment);
+    await checkApkUpdateNow();
+    await vi.waitFor(() => expect(getApkUpdateStatus()).toMatchObject({ kind: "downloading" }));
+    finishDownload();
+    await vi.waitFor(() => expect(getApkUpdateStatus()).toMatchObject({ kind: "available" }));
+    expect(environment.download).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("reads the fork version back from the versionCode", () => {
+    expect(apkVersionName(106701)).toBe("0.1.6701");
+    expect(apkVersionName(10_000_000)).toBe("1.0.0");
   });
 });

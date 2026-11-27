@@ -112,24 +112,45 @@ export function installApkUpdateChecks(
     }
   };
 
+  // The Settings row mirrors this check unless the user has an update of their own going.
+  const rowIsFree = () =>
+    status.kind === "idle" ||
+    status.kind === "current" ||
+    status.kind === "checking" ||
+    status.kind === "failed";
+
   const check = async () => {
     if (busy) return;
     busy = true;
     lastCheckAtMs = environment.now();
+    let found: ApkUpdate | null = null;
     try {
       if (updater.isMetered()) return;
       const update = pickApkUpdate(await environment.fetchLatestRelease(), updater.versionCode());
-      if (!update || update.versionCode <= skippedVersionCode) return;
-      await stageUpdate(update);
-      if (status.kind === "idle" || status.kind === "current") {
-        setStatus({ kind: "available", update });
+      if (!update) {
+        if (status.kind === "checking") setStatus({ kind: "current" });
+        return;
       }
+      found = update;
+      if (update.versionCode <= skippedVersionCode) {
+        if (status.kind === "checking") setStatus({ kind: "available", update });
+        return;
+      }
+      if (staged?.update.versionCode !== update.versionCode && rowIsFree()) {
+        setStatus({ kind: "downloading", update });
+      }
+      await stageUpdate(update);
+      if (rowIsFree() || status.kind === "downloading") setStatus({ kind: "available", update });
       if (!updater.canInstall() && askedVersionCode !== update.versionCode) {
         askedVersionCode = update.versionCode;
         environment.askForInstallPermission(update);
       }
     } catch (cause) {
       environment.warn("Could not get the app update", cause);
+      if (found && status.kind === "downloading") setStatus({ kind: "available", update: found });
+      else if (status.kind === "checking") {
+        setStatus({ kind: "failed", message: describeFailure(cause) });
+      }
     } finally {
       busy = false;
     }
@@ -157,7 +178,11 @@ export function installApkUpdateChecks(
 
   // The Settings button: works on any network and installs right away, since the user asked.
   const checkNow = async () => {
-    if (busy) return;
+    if (busy) {
+      // The launch check is still running; its result lands in the row.
+      if (rowIsFree()) setStatus({ kind: "checking" });
+      return;
+    }
     busy = true;
     lastCheckAtMs = environment.now();
     setStatus({ kind: "checking" });
@@ -219,10 +244,15 @@ export function installApkUpdateChecks(
     }
     if (environment.now() - lastCheckAtMs >= RECHECK_AFTER_MS) void check();
   });
-  controls = { check: checkNow, install: installNow };
+  controls = {
+    check: checkNow,
+    install: installNow,
+    installedVersion: apkVersionName(updater.versionCode()),
+  };
   void check();
   return () => {
     controls = null;
+    setStatus({ kind: "idle" });
     unsubscribe();
   };
 }
@@ -240,6 +270,7 @@ const statusListeners = new Set<() => void>();
 let controls: {
   readonly check: () => Promise<void>;
   readonly install: () => Promise<void>;
+  readonly installedVersion: string;
 } | null = null;
 
 function setStatus(next: ApkUpdateStatus) {
@@ -260,9 +291,18 @@ export function subscribeApkUpdateStatus(listener: () => void): () => void {
   return () => statusListeners.delete(listener);
 }
 
-/** Only the fork's release APK can update itself; other builds have no button. */
-export function isApkUpdateButtonAvailable(): boolean {
-  return controls !== null;
+/**
+ * The fork's version, read back from the versionCode (the APK's versionName is upstream's).
+ * Null outside the fork's release APK, which is the only build that updates itself.
+ */
+export function installedApkVersion(): string | null {
+  return controls?.installedVersion ?? null;
+}
+
+export function apkVersionName(versionCode: number): string {
+  const major = Math.floor(versionCode / 10_000_000);
+  const minor = Math.floor((versionCode % 10_000_000) / 100_000);
+  return `${major}.${minor}.${versionCode % 100_000}`;
 }
 
 export function checkApkUpdateNow(): Promise<void> {

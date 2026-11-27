@@ -1,4 +1,3 @@
-import * as Application from "expo-application";
 import { useSyncExternalStore } from "react";
 
 import {
@@ -6,7 +5,7 @@ import {
   checkApkUpdateNow,
   getApkUpdateStatus,
   installApkUpdateNow,
-  isApkUpdateButtonAvailable,
+  installedApkVersion,
   subscribeApkUpdateStatus,
 } from "../updates/apk-updates";
 
@@ -26,11 +25,12 @@ export function useApkUpdateRow(): ApkUpdateRow | null {
     getApkUpdateStatus,
     getApkUpdateStatus,
   );
-  if (!isApkUpdateButtonAvailable()) return null;
+  const installed = installedApkVersion();
+  if (installed === null) return null;
   return {
     id: "apk-update",
     icon: "arrow.down.circle",
-    ...describeApkUpdateRow(status, Application.nativeApplicationVersion ?? "unknown"),
+    ...describeApkUpdateRow(status, installed),
   };
 }
 
@@ -54,7 +54,7 @@ export function describeApkUpdateRow(
         install,
       );
     case "downloading":
-      return row(`Downloading ${status.update.version}…`, "Keep the app open until it reopens.");
+      return row(`Downloading ${status.update.version}…`, `${megabytes(status.update.size)} MB`);
     case "permission":
       return row(
         "Allow T3 Code Fork to install updates",
