@@ -15,21 +15,30 @@ import {
   preferredMicrophoneInput,
   rememberMicrophones,
 } from "../../lib/microphonePriority";
-import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
+import { getLocalVoiceTranscriber, subscribeLiveTranscript } from "../../native/voiceTranscription";
 import { createVoiceRecorder } from "../../native/voiceRecorder";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
 import { getComposerDraftSnapshot, setComposerDraftText } from "../../state/use-composer-drafts";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
+  postProcessEnvironmentTranscript,
   voiceInputBlocksSubmission,
   type VoiceTranscriber,
 } from "@t3tools/client-runtime/voice-input";
+import { createDictationPostProcess, withDictationTidy } from "./dictationPipeline";
+import { resolveDictationStyle, type DictationStyle } from "./dictationStyle";
+import { setLiveDictationText } from "./liveDictationText";
 import { createLazyVoiceRecorder } from "./lazyVoiceRecorder";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 import { createVoiceInputTarget, VoiceInputSession } from "./voiceInputSession";
 import { createVoiceRecordingPermission } from "./voiceRecordingPermission";
-import { voiceGrantLoadedAtom, voiceRouteAtom } from "./voiceDestination";
+import {
+  dictationCleanupConnectionAtom,
+  runSpeech,
+  voiceGrantLoadedAtom,
+  voiceRouteAtom,
+} from "./voiceDestination";
 import { makePermissionStatusAtom } from "../../lib/permissionStatusAtom";
 import {
   acquireAudioSession,
@@ -58,6 +67,20 @@ function keepScreenAwake(tag: string): () => void {
 
 export const deviceMicrophoneOrder = (saved?: ReadonlyArray<MicrophoneEntry>) =>
   microphoneOrder(saved, Platform.OS === "android" ? "android" : "ios");
+
+function readDictationStyle(registry: AtomRegistry.AtomRegistry): DictationStyle {
+  const current = registry.get(mobilePreferencesAtom);
+  return resolveDictationStyle(
+    AsyncResult.isSuccess(current) ? current.value.dictationStyle : undefined,
+  );
+}
+
+export function useDictationStyle(): DictationStyle {
+  const current = useAtomValue(mobilePreferencesAtom);
+  return resolveDictationStyle(
+    AsyncResult.isSuccess(current) ? current.value.dictationStyle : undefined,
+  );
+}
 
 /** "checking" until the first availability probe settles; re-probed on foreground. */
 export const localVoiceTranscriberAtom = makePermissionStatusAtom<
@@ -120,13 +143,39 @@ export const voiceInputAtom = Atom.make((get) => {
       return preferredMicrophoneInput(inputs, order);
     },
   });
+  const getStyle = () => readDictationStyle(registry);
+  const routeTranscriber = () => {
+    const route = registry.get(voiceRouteAtom);
+    if (route) return route.transcriber;
+    const transcriber = registry.get(localVoiceTranscriberAtom);
+    return transcriber === "checking" ? null : transcriber;
+  };
   const session: VoiceInputSession = new VoiceInputSession({
     recorder,
     getTranscriber: () => {
-      const route = registry.get(voiceRouteAtom);
-      if (route) return route.transcriber;
-      const transcriber = registry.get(localVoiceTranscriberAtom);
-      return transcriber === "checking" ? null : transcriber;
+      const transcriber = routeTranscriber();
+      return transcriber && withDictationTidy(transcriber, getStyle);
+    },
+    postProcess: createDictationPostProcess({
+      getStyle,
+      handsFree: () => session.handsFree,
+      cleanup: (transcript, draft, options, signal) => {
+        const prepared = registry.get(dictationCleanupConnectionAtom);
+        if (!prepared) return null;
+        return runSpeech(
+          postProcessEnvironmentTranscript(
+            prepared,
+            transcript,
+            { text: draft.text, selection: draft.selection },
+            options,
+            () => true,
+          ),
+          signal,
+        ).then((result) => result.text);
+      },
+    }),
+    onPostProcessingError: (error) => {
+      console.warn("[voice-input] dictation cleanup failed; kept the quick-fixed text", error);
     },
     requestPermission: permission.requestPermission,
     configureRecording: async () => {
@@ -167,7 +216,15 @@ export const voiceInputAtom = Atom.make((get) => {
     keepAwake: () => keepScreenAwake(`voice-input:${++keepAwakeSequence}`),
   });
   get.subscribe(voiceRouteAtom, () => session.controller.cancel());
+  const stopLiveTranscript = subscribeLiveTranscript((text) => {
+    if (session.controller.currentState.phase === "recording") setLiveDictationText(text);
+  });
+  const stopClearingLiveText = session.subscribe(() => {
+    if (session.getSnapshot().state.phase === "preparing") setLiveDictationText("");
+  });
   get.addFinalizer(() => {
+    stopLiveTranscript();
+    stopClearingLiveText();
     permission.dispose();
     session.dispose();
     recorder.release();
@@ -277,7 +334,11 @@ export function useGlobalVoiceInput() {
     audioLevels,
     isBusy: voiceInputBlocksSubmission(snapshot.state),
     session,
-    stop: () => session.controller.stop(),
+    // While the AI cleanup runs, the checkmark skips it and keeps the quick-fixed text.
+    stop: () =>
+      session.controller.currentState.phase === "post-processing"
+        ? Promise.resolve(session.controller.skipPostProcessing())
+        : session.controller.stop(),
     cancel: () => session.controller.cancel(),
   };
 }

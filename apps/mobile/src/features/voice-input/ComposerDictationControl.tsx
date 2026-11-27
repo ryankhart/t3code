@@ -19,6 +19,8 @@ import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { cn } from "../../lib/cn";
 import type { VoiceComposerPresentation } from "./voiceInputPresentation";
+import { useDictationStyle } from "./VoiceInputProvider";
+import { useLiveDictationText } from "./liveDictationText";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
 const DICTATION_TIMING = {
@@ -356,6 +358,9 @@ export function ComposerDictationStatus(props: {
   readonly presentation: VoiceComposerPresentation;
 }) {
   const recording = props.phase === "recording";
+  const liveText = useLiveDictationText();
+  const { timing } = useDictationStyle();
+  const showsLiveText = recording && timing === "live" && liveText.length > 0;
   const waveformStyle = useAnimatedStyle(() => ({
     opacity: withTiming(recording ? 1 : 0, DICTATION_TIMING),
   }));
@@ -376,7 +381,18 @@ export function ComposerDictationStatus(props: {
           className="absolute inset-0 min-w-0 flex-row items-center gap-2 px-1"
           style={waveformStyle}
         >
-          <VoiceWaveform audioLevels={props.audioLevels} />
+          {showsLiveText ? (
+            // The head is cut off so the newest words stay in view.
+            <Text
+              className="min-w-0 flex-1 text-sm leading-[18px] text-foreground"
+              ellipsizeMode="head"
+              numberOfLines={2}
+            >
+              {liveText}
+            </Text>
+          ) : (
+            <VoiceWaveform audioLevels={props.audioLevels} />
+          )}
           <DictationElapsedTime className="text-foreground-muted" seconds={props.elapsedSeconds} />
         </Animated.View>
         <Animated.View className="absolute inset-0 justify-center px-2" style={labelStyle}>
@@ -423,7 +439,9 @@ export function ComposerDictationPrimaryAction(props: {
         size={props.size}
         accessibilityLabel={
           props.presentation.confirmationEnabled
-            ? gt("Finish dictation")
+            ? props.state.phase === "post-processing"
+              ? gt("Skip cleanup")
+              : gt("Finish dictation")
             : (props.presentation.statusLabel ?? gt("Preparing voice input"))
         }
         disabled={!props.presentation.confirmationEnabled}

@@ -20,6 +20,10 @@ type GoogleTranscriptionModule = {
   cancel(id: number): Promise<void>;
   readonly LiveVoiceRecorder?: new () => NativeVoiceRecorder<RecordingStatus, RecorderState>;
   startLive?(id: number, uri: string, locale: string, mode: number): Promise<string>;
+  addListener?(
+    event: "onLiveText",
+    listener: (event: { readonly text: string }) => void,
+  ): { remove(): void };
 };
 
 const native = requireOptionalNativeModule<GoogleTranscriptionModule>("T3VoiceTranscription");
@@ -49,6 +53,12 @@ export function createLiveVoiceRecorder() {
   return Number(Platform.Version) >= 31 && native?.LiveVoiceRecorder
     ? new native.LiveVoiceRecorder()
     : null;
+}
+
+/** Words heard so far while an on-device dictation records; builds before this never call it. */
+export function subscribeLiveTranscript(listener: (text: string) => void): () => void {
+  const subscription = native?.addListener?.("onLiveText", (event) => listener(event.text));
+  return () => subscription?.remove();
 }
 
 export async function getLocalVoiceTranscriber(): Promise<VoiceTranscriber | null> {

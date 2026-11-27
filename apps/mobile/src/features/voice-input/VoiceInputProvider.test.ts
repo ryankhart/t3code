@@ -24,14 +24,21 @@ vi.mock("expo-audio", () => ({
   setIsAudioActiveAsync: async () => {},
 }));
 vi.mock("../../native/voiceRecorder", () => ({ createVoiceRecorder: vi.fn() }));
-vi.mock("../../native/voiceTranscription", () => ({ getLocalVoiceTranscriber: async () => null }));
+vi.mock("../../native/voiceTranscription", () => ({
+  getLocalVoiceTranscriber: async () => null,
+  subscribeLiveTranscript: () => () => {},
+}));
 vi.mock("../../state/preferences", async () => {
   const { AsyncResult, Atom } = await import("effect/reactivity");
   return { mobilePreferencesAtom: Atom.make(AsyncResult.initial()) };
 });
 vi.mock("./voiceDestination", async () => {
   const { Atom } = await import("effect/reactivity");
-  return { voiceRouteAtom: Atom.make(null) };
+  return {
+    voiceRouteAtom: Atom.make(null),
+    dictationCleanupConnectionAtom: Atom.make(null),
+    runSpeech: vi.fn(),
+  };
 });
 
 import { setAudioModeAsync } from "expo-audio";

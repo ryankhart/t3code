@@ -111,6 +111,11 @@ export class VoiceInputSession {
     return this.target?.label ?? null;
   }
 
+  /** Talk mode's dictation, which ends itself after a pause and is sent as spoken. */
+  get handsFree(): boolean {
+    return this.target?.onNoSpeech !== undefined;
+  }
+
   readonly subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
