@@ -18,7 +18,7 @@ interface ApkUpdateRow {
   readonly onPress: () => void;
 }
 
-/** The fork's "Check for updates" row: one tap checks, a second downloads, installs and reopens. */
+/** The fork's "Check for updates" row: one tap checks, a second downloads and installs. */
 export function useApkUpdateRow(): ApkUpdateRow | null {
   const status = useSyncExternalStore(
     subscribeApkUpdateStatus,
@@ -50,7 +50,7 @@ export function describeApkUpdateRow(
     case "available":
       return row(
         `Update to ${status.update.version}`,
-        `${megabytes(status.update.size)} MB. Tap to download and install; the app reopens by itself.`,
+        `${megabytes(status.update.size)} MB. Tap to download and install it.`,
         install,
       );
     case "downloading":
@@ -62,7 +62,10 @@ export function describeApkUpdateRow(
         install,
       );
     case "installing":
-      return row(`Installing ${status.update.version}…`, "The app closes and reopens.");
+      return row(
+        `Installing ${status.update.version}…`,
+        'The app closes, then reopens or shows an "Updated" notification to tap.',
+      );
     case "failed":
       return row("Check for updates", `Last try failed: ${status.message}`, check);
   }
