@@ -29,6 +29,8 @@ class T3VoiceTranscriptionModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("T3VoiceTranscription")
 
+    Events("onLiveText")
+
     defineDecodeRecording()
 
     AsyncFunction("checkAvailability").Coroutine<Boolean> {
@@ -83,7 +85,7 @@ class T3VoiceTranscriptionModule : Module() {
           ?: error("The voice recording is no longer available.")
         val context = requireNotNull(appContext.reactContext)
         MlKitSpeechClient(context, Locale.forLanguageTag(language), mode).use {
-          recorder.transcribe(uri, it)
+          recorder.transcribe(uri, it) { text -> sendEvent("onLiveText", mapOf("text" to text)) }
         }
       }
     }

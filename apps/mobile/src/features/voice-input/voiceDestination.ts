@@ -29,7 +29,7 @@ import { requireOptionalNativeModule } from "expo";
 import { fetch as expoFetch } from "expo/fetch";
 
 import { appAtomRegistry } from "../../state/atom-registry";
-import { environmentPresentations } from "../../state/presentation";
+import { connectedEnvironmentIdsAtom, environmentPresentations } from "../../state/presentation";
 import { environmentSession, sessionHasScope } from "../../state/session";
 import { connectionAtomRuntime } from "../../connection/runtime";
 import { uuidv4 } from "../../lib/uuid";
@@ -116,6 +116,32 @@ const voiceConnections = (capability: "voiceTranscription" | "cloudVoiceTranscri
     }),
   );
 export const voiceConnectionAtom = voiceConnections("voiceTranscription");
+
+const operateConnectionAtom = Atom.family((id: EnvironmentId) =>
+  Atom.make((get) => {
+    const environment = get(environmentPresentations.presentationAtom(id));
+    if (
+      environment?.connection.phase !== "connected" ||
+      !sessionHasScope(get(environmentSession.sessionStateAtom(id)), AuthOrchestrationOperateScope)
+    )
+      return null;
+    return Option.getOrNull(get(environmentSession.preparedConnectionValueAtom(id)));
+  }),
+);
+
+/** Where dictation cleanup runs: the transcription environment, else any connected one. */
+export const dictationCleanupConnectionAtom = Atom.make((get) => {
+  const grant = get(voiceGrantAtom);
+  const ids = [
+    ...(grant ? [grant.destination.environmentId] : []),
+    ...get(connectedEnvironmentIdsAtom),
+  ];
+  for (const id of ids) {
+    const connection = get(operateConnectionAtom(id));
+    if (connection) return connection;
+  }
+  return null;
+}).pipe(Atom.keepAlive);
 export const cloudVoiceConnectionAtom = voiceConnections("cloudVoiceTranscription");
 
 // React Native's XMLHttpRequest fetch follows redirects. Expo's native transport honors redirect: "error".

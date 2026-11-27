@@ -60,8 +60,17 @@ export function resolveVoiceComposerPresentation(
         confirmationEnabled: true,
       };
     }
-    case "transcribing":
     case "post-processing":
+      return {
+        leadingAction: "cancel",
+        trailingAction: "confirm",
+        showsSend: false,
+        statusKind: "active",
+        statusLabel: resolve(msg("Cleaning up", { $context: "voice input status" })),
+        // The checkmark skips the cleanup and keeps the quick-fixed transcript.
+        confirmationEnabled: true,
+      };
+    case "transcribing":
       return {
         leadingAction: "cancel",
         trailingAction: "confirm",

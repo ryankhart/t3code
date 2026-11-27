@@ -44,6 +44,10 @@ function wrapError(
   return new VoiceTranscriptionError({ code, message, cause });
 }
 
+export function subscribeLiveTranscript(_listener: (text: string) => void): () => void {
+  return () => {};
+}
+
 export async function getLocalVoiceTranscriber(): Promise<VoiceTranscriber | null> {
   const locales = getPreferredLocales();
   // Availability is a device and OS check; which languages have a model only `prepare` knows.

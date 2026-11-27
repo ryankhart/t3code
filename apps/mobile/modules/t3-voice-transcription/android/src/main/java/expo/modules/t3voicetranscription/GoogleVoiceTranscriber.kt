@@ -100,19 +100,31 @@ private fun isModelUnavailable(error: GenAiException): Boolean = when (error.err
 }
 
 internal suspend fun collectGoogleVoiceTranscript(
-  responses: Flow<SpeechRecognizerResponse>
+  responses: Flow<SpeechRecognizerResponse>,
+  onText: ((String) -> Unit)? = null
 ): String {
   val text = StringBuilder()
   var partial = ""
   var completed = false
+  // The words heard so far, for showing them while the person is still speaking.
+  fun report() {
+    if (onText == null) return
+    val heard = text.toString().trim()
+    val pending = partial.trim()
+    onText(if (heard.isEmpty() || pending.isEmpty()) heard + pending else "$heard $pending")
+  }
   responses.collect { response ->
     when (response) {
       // Separators between final utterances are supplied by the SDK.
       is SpeechRecognizerResponse.FinalTextResponse -> {
         text.append(response.text)
         partial = ""
+        report()
       }
-      is SpeechRecognizerResponse.PartialTextResponse -> partial = response.text
+      is SpeechRecognizerResponse.PartialTextResponse -> {
+        partial = response.text
+        report()
+      }
       is SpeechRecognizerResponse.ErrorResponse -> throw response.e
       is SpeechRecognizerResponse.CompletedResponse -> completed = true
       else -> Unit
@@ -162,11 +174,16 @@ internal class MlKitSpeechClient(context: Context, locale: Locale, mode: Int) : 
     }
   }
 
-  suspend fun transcribeLive(capture: LivePcmCapture, pipe: PcmPipe): String = pipe.use {
+  suspend fun transcribeLive(
+    capture: LivePcmCapture,
+    pipe: PcmPipe,
+    onText: ((String) -> Unit)? = null
+  ): String = pipe.use {
     val request = speechRecognizerRequest { audioSource = pipe.source }
     try {
       collectGoogleVoiceTranscript(
-        livePcmResponses(capture, pipe) { recognizer.startRecognition(request) }
+        livePcmResponses(capture, pipe) { recognizer.startRecognition(request) },
+        onText
       )
     } finally {
       withContext(NonCancellable) { runCatching { recognizer.stopRecognition() } }

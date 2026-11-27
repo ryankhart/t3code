@@ -24,6 +24,7 @@ import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
 import { isMicrophoneKind, type MicrophoneEntry } from "../lib/microphonePriority";
 import { READ_ALOUD_VOICE_NAME } from "../lib/readAloudVoiceName";
+import { parseDictationStyle, type DictationStyle } from "../features/voice-input/dictationStyle";
 import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
 import * as MobileDatabase from "./mobile-database";
 import * as MobileSecureStorage from "./mobile-secure-storage";
@@ -194,6 +195,8 @@ export interface Preferences {
   readonly newThreadButtonTarget?: NewThreadButtonTarget;
   // Read aloud: the Edge natural voice the PC's read-aloud server speaks with.
   readonly readAloudVoice?: string;
+  // Dictation style: how speech becomes text (Settings > Voice).
+  readonly dictationStyle?: Partial<DictationStyle>;
 }
 
 export class MobilePreferencesLoadError extends Schema.TaggedError<MobilePreferencesLoadError>()(
@@ -287,6 +290,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     issueSavedViews?: ReadonlyArray<IssueSavedView>;
     newThreadButtonTarget?: NewThreadButtonTarget;
     readAloudVoice?: string;
+    dictationStyle?: Partial<DictationStyle>;
   } = {};
 
   if (Array.isArray(parsed.hiddenNavigationTabs)) {
@@ -479,6 +483,8 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   ) {
     preferences.readAloudVoice = parsed.readAloudVoice;
   }
+  const dictationStyle = parseDictationStyle(parsed.dictationStyle);
+  if (dictationStyle) preferences.dictationStyle = dictationStyle;
   return preferences;
 }
 
