@@ -16,3 +16,8 @@ stages the Linux CLI archive verbatim with its SHA-256 sidecar
 # Added 2026-11-11: fail on unmodified munim-v0.1.56.
 shows images the agent viewed outside their collapsed tool group
 keeps the real preload subscribed across a remount with a delayed subscribe reply
+# Added 2026-11-26: fail on unmodified munim-v0.1.67 on this PC (Windows path
+# separators, symlinks needing admin rights, upstream behaviour).
+the primary-paste setting
+target of a symlinked Scratch
+opens an image from an expanded tool row
