@@ -20,6 +20,7 @@ export interface WorkspaceListHeaderProps {
   readonly pinnedThreads?: {
     readonly accessibilityLabel: string;
     readonly onPress: () => void;
+    readonly badgeCount: number;
   };
   /** iOS: a settings button. Android reaches Settings from the workspace navigation. */
   readonly onOpenSettings?: () => void;
