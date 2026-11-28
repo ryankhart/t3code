@@ -1,5 +1,6 @@
 import { AppActivityIndicator } from "./AppActivityIndicator";
 import { Column, Text as NativeText, RNHostView } from "@expo/ui/jetpack-compose";
+import { clickable, fillMaxWidth } from "@expo/ui/jetpack-compose/modifiers";
 import { useGT } from "gt-react-native";
 import { use, useState, type ReactNode } from "react";
 import { View } from "react-native";
@@ -13,6 +14,7 @@ import { useScaledTextRole } from "../../features/settings/appearance/useScaledT
 import { useToolbarLayout } from "./useToolbarLayout";
 import { useControlTheme } from "./useControlTheme";
 import { RoutedFormSheetContext } from "./RoutedFormSheetContext";
+import { marqueeOnce } from "./textMarquee.android";
 
 export interface AndroidHeaderAction {
   readonly accessibilityLabel: string;
@@ -56,6 +58,25 @@ export function AndroidScreenHeader(props: {
   const inFormSheet = use(RoutedFormSheetContext);
   const { paddingTop, paddingBottom } = useToolbarLayout(props.embedded || inFormSheet);
   const [headerWidth, setHeaderWidth] = useState(0);
+  // The text each line had at the last tap; a line whose text changed since then doesn't scroll.
+  const [marquee, setMarquee] = useState<{
+    title: string | null;
+    subtitle: string | null;
+    run: number;
+  }>({ title: null, subtitle: null, run: 0 });
+  const subtitle = props.subtitle || null;
+  if (
+    (marquee.title !== null && marquee.title !== props.title) ||
+    (marquee.subtitle !== null && marquee.subtitle !== subtitle)
+  ) {
+    setMarquee({
+      title: marquee.title === props.title ? marquee.title : null,
+      subtitle: marquee.subtitle === subtitle ? marquee.subtitle : null,
+      run: marquee.run,
+    });
+  }
+  const titleScrolls = marquee.title !== null && marquee.title === props.title;
+  const subtitleScrolls = marquee.subtitle !== null && marquee.subtitle === subtitle;
   const { visibleActions, overflowActions } = splitAndroidHeaderActions(
     props.actions ?? [],
     headerWidth >= 600,
@@ -99,31 +120,36 @@ export function AndroidScreenHeader(props: {
             <RNHostView matchContents={{ vertical: true }}>
               <View collapsable={false}>{props.titleContent}</View>
             </RNHostView>
-          ) : !props.subtitle ? (
-            <NativeText
-              color={colors["--color-header-foreground"]}
-              maxLines={1}
-              overflow="ellipsis"
-              style={titleTypography}
-            >
-              {props.title}
-            </NativeText>
           ) : (
-            <Column>
+            // Each tap scrolls whichever lines are cut off through once.
+            <Column
+              modifiers={[
+                fillMaxWidth(),
+                clickable(
+                  () => setMarquee((last) => ({ title: props.title, subtitle, run: last.run + 1 })),
+                  { indication: false },
+                ),
+              ]}
+            >
+              {/* A fresh view per tap: Compose would keep a running lap's identical marquee. */}
               <NativeText
+                key={`title-${marquee.run}`}
                 color={colors["--color-header-foreground"]}
                 maxLines={1}
                 overflow="ellipsis"
                 style={titleTypography}
+                modifiers={titleScrolls ? marqueeOnce(marquee.run) : undefined}
               >
                 {props.title}
               </NativeText>
               {props.subtitle ? (
                 <NativeText
+                  key={`subtitle-${marquee.run}`}
                   color={colors["--color-foreground-muted"]}
                   maxLines={1}
                   overflow="ellipsis"
                   style={subtitleTypography}
+                  modifiers={subtitleScrolls ? marqueeOnce(marquee.run) : undefined}
                 >
                   {props.subtitle}
                 </NativeText>
