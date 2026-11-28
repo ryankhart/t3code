@@ -34,6 +34,7 @@ import { threadJumpTarget } from "../keyboard/threadKeyboardShortcuts";
 import {
   buildThreadListV2Items,
   buildThreadListV2ListItems,
+  countPinnedThreadsNeedingAttention,
   getThreadListV2OrderedSection,
   resolveThreadListV2SnoozeMenuSelection,
   resolveThreadListV2SwipeActions,
@@ -382,6 +383,65 @@ describe("buildThreadListV2Items", () => {
     expect(build("exclude", "pinned").items.map((item) => item.thread.id)).toEqual(
       expect.arrayContaining(["pinned-first", "pinned-later"]),
     );
+  });
+
+  it("counts the pinned threads that need attention for the pin button's badge", () => {
+    const finished = (id: string, lastVisitedAt: string | null) =>
+      makeThread({
+        id: ThreadId.make(id),
+        title: id,
+        pinnedAt: NOW,
+        lastVisitedAt,
+        latestRun: {
+          runId: RunId.make(`run-${id}`),
+          status: "completed",
+          requestedAt: "2026-06-01T01:00:00.000Z",
+          startedAt: "2026-06-01T01:00:00.000Z",
+          completedAt: "2026-06-01T02:00:00.000Z",
+          assistantMessageId: null,
+        },
+      });
+    const otherEnvironment = EnvironmentId.make("environment-2");
+    const threads = [
+      finished("unread", "2026-06-01T01:30:00.000Z"),
+      finished("read", "2026-06-01T03:00:00.000Z"),
+      makeThread({
+        id: ThreadId.make("asks"),
+        title: "asks",
+        pinnedAt: NOW,
+        hasPendingUserInput: true,
+      }),
+      makeThread({
+        id: ThreadId.make("asks-unpinned"),
+        title: "asks-unpinned",
+        hasPendingUserInput: true,
+      }),
+      makeThread({
+        id: ThreadId.make("asks-settled"),
+        title: "asks-settled",
+        pinnedAt: NOW,
+        settledOverride: "settled",
+        hasPendingUserInput: true,
+      }),
+      makeThread({
+        id: ThreadId.make("asks-elsewhere"),
+        title: "asks-elsewhere",
+        environmentId: otherEnvironment,
+        pinnedAt: NOW,
+        hasPendingApprovals: true,
+      }),
+    ];
+    const count = (scope: EnvironmentId | null) =>
+      countPinnedThreadsNeedingAttention({
+        threads,
+        environmentId: scope,
+        projectRefs: null,
+        now: NOW,
+      });
+
+    expect(count(null)).toBe(3);
+    expect(count(environmentId)).toBe(2);
+    expect(count(otherEnvironment)).toBe(1);
   });
 
   it("hides snoozed threads and counts them — visibility parity with web", () => {

@@ -313,6 +313,36 @@ export function resolveThreadListV2RowStatus(
   return hasUnseenRunFailure(thread) ? status : "ready";
 }
 
+/** A row with a status word: it asks for the user, failed, or finished a run they haven't opened. */
+export function threadListV2NeedsAttention(
+  thread: Parameters<typeof resolveThreadListV2RowStatus>[0],
+): boolean {
+  const status = resolveThreadListV2RowStatus(thread);
+  if (status === "ready") return threadHasUnseenCompletion(thread);
+  return status !== "working" && status !== "waiting";
+}
+
+/** How many threads the pinned list shows that need attention, for the badge on its button. */
+export function countPinnedThreadsNeedingAttention(
+  input: Omit<Parameters<typeof getThreadListV2OrderedSection>[0], "section" | "pendingOrder"> & {
+    readonly environmentId: EnvironmentId | null;
+    readonly projectRefs: ReadonlyArray<{
+      readonly environmentId: EnvironmentId;
+      readonly projectId: ProjectId;
+    }> | null;
+  },
+): number {
+  const projectKeys = input.projectRefs
+    ? new Set(input.projectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`))
+    : null;
+  return getThreadListV2OrderedSection({ ...input, section: "pinned" }).filter(
+    (thread) =>
+      (input.environmentId === null || thread.environmentId === input.environmentId) &&
+      (projectKeys === null || projectKeys.has(`${thread.environmentId}:${thread.projectId}`)) &&
+      threadListV2NeedsAttention(thread),
+  ).length;
+}
+
 function parseTimestampMs(isoDate: string): number {
   const parsed = Date.parse(isoDate);
   return Number.isNaN(parsed) ? 0 : parsed;

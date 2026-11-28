@@ -6,6 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useMemo, useState } from "react";
 import { Platform } from "react-native";
 import { useGT, useMessages } from "gt-react-native";
+import { useAtomValue } from "@effect/atom-react";
 
 import type {
   EnvironmentProject,
@@ -14,6 +15,10 @@ import type {
 import { pickableProjectGroups } from "@t3tools/client-runtime/state/project-grouping";
 
 import { useProjects } from "../../state/entities";
+import { threadListEnvironmentsAtom } from "../../state/presentation";
+import { useQueuedThreadKeys } from "../../state/use-thread-outbox";
+import { countPinnedThreadsNeedingAttention } from "../threads/threadListV2";
+import { useThreadListNow } from "../threads/use-thread-list-now";
 import { steadyNavigationThreadShellsAtom } from "../../state/threads";
 import { useLaunchingThreads, usePendingNewTasks } from "../../state/use-pending-new-tasks";
 import { useWorkspaceState } from "../../state/workspace";
@@ -158,8 +163,24 @@ export function HomeRouteScreen() {
       })),
     [projectScopes, threads],
   );
-  const selectedProjectKey =
-    resolveHomeProjectFilterScope(projectScopes, projects, listOptions)?.key ?? null;
+  const selectedProjectScope = resolveHomeProjectFilterScope(projectScopes, projects, listOptions);
+  const selectedProjectKey = selectedProjectScope?.key ?? null;
+  const now = useThreadListNow(threads);
+  const { settlementEnvironmentIds, snoozeEnvironmentIds } = useAtomValue(
+    threadListEnvironmentsAtom,
+  );
+  const queuedThreadKeys = useQueuedThreadKeys();
+  const pinnedAttentionCount = pinnedDrawer
+    ? countPinnedThreadsNeedingAttention({
+        threads,
+        environmentId: selectedEnvironmentId,
+        projectRefs: selectedProjectScope?.projectRefs ?? null,
+        now,
+        settlementEnvironmentIds,
+        snoozeEnvironmentIds,
+        queuedThreadKeys,
+      })
+    : 0;
 
   const homeScreenProps = {
     catalogState,
@@ -226,7 +247,13 @@ export function HomeRouteScreen() {
           onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
           pinnedThreads={
             pinnedDrawer
-              ? { accessibilityLabel: gt("Pinned threads"), onPress: pinnedDrawer.open }
+              ? {
+                  accessibilityLabel: gt("Pinned threads, {count} unread", {
+                    count: pinnedAttentionCount,
+                  }),
+                  onPress: pinnedDrawer.open,
+                  badgeCount: pinnedAttentionCount,
+                }
               : undefined
           }
           search={{

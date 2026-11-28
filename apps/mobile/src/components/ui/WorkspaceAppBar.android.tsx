@@ -1,5 +1,13 @@
 import { useGT } from "gt-react-native";
-import { Box, Icon, IconButton, RNHostView } from "@expo/ui/jetpack-compose";
+import {
+  Badge,
+  BadgedBox,
+  Box,
+  Icon,
+  IconButton,
+  RNHostView,
+  Text as NativeText,
+} from "@expo/ui/jetpack-compose";
 import { clip, semantics, Shapes, size } from "@expo/ui/jetpack-compose/modifiers";
 import type { MenuAction } from "@react-native-menu/menu";
 import {
@@ -34,6 +42,8 @@ export interface WorkspaceAppBarProps {
   readonly pinnedThreads?: {
     readonly accessibilityLabel: string;
     readonly onPress: () => void;
+    /** Pinned threads that need attention; the badge shows even at 0. */
+    readonly badgeCount: number;
   };
   readonly search?: {
     readonly accessibilityLabel: string;
@@ -139,6 +149,13 @@ function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
   const searching = search?.active === true;
   const { colors } = useControlTheme();
   const tint = colors["--color-header-foreground"];
+  const badgeCount = pinnedThreads?.badgeCount ?? 0;
+  const badgeLabel = badgeCount > 99 ? "99+" : String(badgeCount);
+  const badge = !pinnedThreads
+    ? { container: "transparent", content: "transparent" }
+    : badgeCount > 0
+      ? { container: colors["--color-primary"], content: colors["--color-primary-foreground"] }
+      : { container: colors["--color-subtle-strong"], content: colors["--color-foreground-muted"] };
   const { height, paddingTop, paddingBottom } = useToolbarLayout();
   const filterMenu = filter ? (
     <AndroidAnchoredMenu
@@ -221,7 +238,14 @@ function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
                       : []),
                   ]}
                 >
-                  <Icon source={PIN_ICON} size={24} tint={pinnedThreads ? tint : "transparent"} />
+                  <BadgedBox>
+                    <Icon source={PIN_ICON} size={24} tint={pinnedThreads ? tint : "transparent"} />
+                    <BadgedBox.Badge>
+                      <Badge containerColor={badge.container} contentColor={badge.content}>
+                        <NativeText color={badge.content}>{badgeLabel}</NativeText>
+                      </Badge>
+                    </BadgedBox.Badge>
+                  </BadgedBox>
                 </IconButton>
               </Box>
             }

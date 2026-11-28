@@ -114,7 +114,10 @@ export interface AppBarProps {
   /** Android: replaces the sidebar button at the start of the bar. */
   readonly leading?: ReactNode;
   /** Android workspace bar only: a pin button before the title that opens the pinned threads. */
-  readonly pinnedThreads?: Pick<AppBarAction, "accessibilityLabel" | "onPress">;
+  readonly pinnedThreads?: Pick<AppBarAction, "accessibilityLabel" | "onPress"> & {
+    /** Pinned threads that need attention, shown on the button even at 0. */
+    readonly badgeCount: number;
+  };
   /**
    * Workspace shell only: a second bar inside a route whose own bar is drawn elsewhere, such as
    * a workspace tab pane. Leaves route options alone; iOS draws nothing. Screens never set it.
