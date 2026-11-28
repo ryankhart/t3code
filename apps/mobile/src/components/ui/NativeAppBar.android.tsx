@@ -9,6 +9,8 @@ import { useToolbarLayout } from "./useToolbarLayout";
 export function NativeAppBar(props: {
   readonly title: ReactElement;
   readonly navigationIcon?: ReactElement;
+  /** A Compose navigation icon, laid out by the bar like `nativeActions`. */
+  readonly nativeNavigationIcon?: ReactElement;
   readonly actions?: ReactElement;
   /** Compose nodes laid out by the bar itself, so they never wait on a React Native measure. */
   readonly nativeActions?: ReactElement;
@@ -31,7 +33,9 @@ export function NativeAppBar(props: {
         }}
       >
         <TopAppBar.Title>{props.title}</TopAppBar.Title>
-        {props.navigationIcon ? (
+        {props.nativeNavigationIcon ? (
+          <TopAppBar.NavigationIcon>{props.nativeNavigationIcon}</TopAppBar.NavigationIcon>
+        ) : props.navigationIcon ? (
           <TopAppBar.NavigationIcon>
             <RNHostView matchContents>{props.navigationIcon}</RNHostView>
           </TopAppBar.NavigationIcon>

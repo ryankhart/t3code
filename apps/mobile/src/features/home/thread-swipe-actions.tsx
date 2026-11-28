@@ -138,6 +138,12 @@ function resolveSecondaryAction(input: {
 
 /** Keep the scroll gate in context so scroll start cannot re-render every row and its subscriptions. */
 const SwipeableScrollGateContext = createContext(true);
+/**
+ * Rows have no left actions, so a list can claim the left-to-right swipe of a closed row for its
+ * own gesture (Android's pinned threads sidebar). An open row still drags right to close.
+ */
+export const RightSwipeReservedContext = createContext(false);
+const RESERVED_RIGHT_SWIPE_OFFSET = Number.MAX_SAFE_INTEGER;
 // Swipeable rebuilds its native pan gesture whenever its config changes identity, so the props
 // that feed it stay stable across row re-renders such as selection.
 const FAIL_OFFSET_Y: [number, number] = [-10, 10];
@@ -267,6 +273,8 @@ export function ThreadSwipeable(props: ThreadSwipeableProps) {
     props.fullSwipeAction ?? (props.secondaryAction === undefined ? "delete" : "primary");
   const close = useCallback(() => swipeableRef.current?.close(), []);
   const gateEnabled = use(SwipeableScrollGateContext);
+  const rightSwipeReserved = use(RightSwipeReservedContext);
+  const [engaged, setEngaged] = useState(false);
   const mountedRef = useRef(true);
   const dismissalRef = useRef<{ finished: Promise<void>; restore: () => void } | null>(null);
   const pendingDismissRef = useRef<{ id: number; resolve: () => void } | null>(null);
@@ -459,11 +467,13 @@ export function ThreadSwipeable(props: ThreadSwipeableProps) {
   );
   const { dormant, onSwipeableWillOpen, backgroundColor, containerStyle } = props;
   const handleWillOpen = useCallback(() => {
+    setEngaged(true);
     if (!dormant && !dismissalRef.current && swipeableRef.current) {
       onSwipeableWillOpen?.(swipeableRef.current);
     }
   }, [dormant, onSwipeableWillOpen]);
   const handleSwipeableClose = useCallback(() => {
+    setEngaged(false);
     if (swipeableRef.current) onSwipeableClose?.(swipeableRef.current);
   }, [onSwipeableClose]);
   const { fontScale } = useWindowDimensions();
@@ -552,6 +562,9 @@ export function ThreadSwipeable(props: ThreadSwipeableProps) {
             animationOptions={THREAD_SWIPE_SPRING}
             childrenContainerStyle={childrenContainerStyle}
             containerStyle={swipeableContainerStyle}
+            dragOffsetFromLeft={
+              rightSwipeReserved && !engaged ? RESERVED_RIGHT_SWIPE_OFFSET : undefined
+            }
             dragOffsetFromRight={-8}
             enabled={!props.dormant && !isDismissing && props.enabled !== false && gateEnabled}
             enableTrackpadTwoFingerGesture={props.enableTrackpadSwipe ?? true}

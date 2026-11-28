@@ -87,6 +87,7 @@ import {
   threadListV2ListItemsAreEqual,
   THREAD_LIST_V2_SETTLED_INITIAL_COUNT,
   THREAD_LIST_V2_SETTLED_PAGE_COUNT,
+  type ThreadListPinnedSection,
   type ThreadListV2ListItem,
 } from "../threads/threadListV2";
 import { useThreadListV2ShelfPreferences } from "../threads/use-thread-list-v2-shelf-preferences";
@@ -128,6 +129,8 @@ interface HomeScreenProps {
   readonly selectedProjectKey: string | null;
   readonly projectSortOrder: HomeProjectSortOrder;
   readonly projectGroupingMode: SidebarProjectGroupingMode;
+  /** "exclude" leaves pinned threads to the pinned drawer, which lists them with "only". */
+  readonly pinnedSection?: ThreadListPinnedSection;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onEnvironmentChange: (environmentId: EnvironmentId | null) => void;
   readonly onProjectChange: (projectKey: string | null) => void;
@@ -446,6 +449,7 @@ export function HomeScreen(props: HomeScreenProps) {
     snoozedShelfExpanded,
     settledShelfExpanded,
     selectedThreadKey,
+    pinnedSection: props.pinnedSection,
   });
   // Called as `props.onSelectThread(...)`, the compiler would cache this handler on the whole
   // props object, which is new on every render of Home's parent.
@@ -709,10 +713,32 @@ export function HomeScreen(props: HomeScreenProps) {
     workingShelfEnabled,
   };
 
+  const pinnedOnly = props.pinnedSection === "only";
+  // The drawer explains its own emptiness; the full-screen empty state is about having no threads.
   const hasAnyThreads =
+    pinnedOnly ||
     props.threads.some((thread) => thread.archivedAt === null) ||
     props.pendingTasks.length > 0 ||
     threadListV2Layout.settledCount > 0;
+  const scopedProjectKeys =
+    v2ScopedProjectGroup === null
+      ? null
+      : new Set(
+          v2ScopedProjectGroup.projectRefs.map((ref) =>
+            scopedProjectKey(ref.environmentId, ref.projectId),
+          ),
+        );
+  const hasHiddenPinnedThreads =
+    props.pinnedSection === "exclude" &&
+    props.threads.some(
+      (thread) =>
+        thread.archivedAt === null &&
+        thread.pinnedAt != null &&
+        (props.selectedEnvironmentId === null ||
+          thread.environmentId === props.selectedEnvironmentId) &&
+        (scopedProjectKeys === null ||
+          scopedProjectKeys.has(scopedProjectKey(thread.environmentId, thread.projectId))),
+    );
   // A hidden list gets no layout, so it never reports its rows as laid out.
   const hasRowsToLayOut = props.visible && hasAnyThreads && threadListV2Items.length > 0;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- holds the native launch splash, which is outside React, until the rows are gone or this list unmounts; a layout effect runs before the splash hides in this commit
@@ -807,46 +833,57 @@ export function HomeScreen(props: HomeScreenProps) {
     </View>
   );
 
-  const v2ListEmpty =
-    hasSearchQuery && threadSearch.isPending ? (
-      <EmptyState
-        title={gt("Searching thread messages…")}
-        detail={gt('Looking for "{query}" in messages.', { query: props.searchQuery })}
-        variant={Platform.OS === "android" ? "plain" : undefined}
-      />
-    ) : hasSearchQuery && threadSearch.failed ? (
-      <EmptyState
-        title={gt("Search failed")}
-        detail={gt('Couldn\'t search messages for "{query}". Change the search to try again.', {
-          query: props.searchQuery,
-        })}
-        variant={Platform.OS === "android" ? "plain" : undefined}
-      />
-    ) : hasSearchQuery ? (
-      <EmptyState
-        title={gt("No results")}
-        detail={gt('No threads matching "{query}".', { query: props.searchQuery })}
-        variant={Platform.OS === "android" ? "plain" : undefined}
-      />
-    ) : v2ScopedProjectGroup !== null ? (
-      <EmptyState
-        title={gt("No threads in {name}", { name: v2ScopedProjectGroup.title })}
-        detail={gt("Choose another project or create a new task.")}
-        variant={Platform.OS === "android" ? "plain" : undefined}
-      />
-    ) : selectedEnvironmentLabel ? (
-      <EmptyState
-        title={gt("No threads in {name}", { name: selectedEnvironmentLabel })}
-        detail={gt("Choose another environment or create a new task.")}
-        variant={Platform.OS === "android" ? "plain" : undefined}
-      />
-    ) : (
-      <EmptyState
-        title={gt("No threads yet")}
-        detail={gt("Create a task to start a new coding session.")}
-        variant={Platform.OS === "android" ? "plain" : undefined}
-      />
-    );
+  const v2ListEmpty = pinnedOnly ? (
+    <EmptyState
+      title={gt("No pinned threads")}
+      detail={gt("Pin a thread from its swipe actions to keep it here.")}
+      variant="plain"
+    />
+  ) : hasSearchQuery && threadSearch.isPending ? (
+    <EmptyState
+      title={gt("Searching thread messages…")}
+      detail={gt('Looking for "{query}" in messages.', { query: props.searchQuery })}
+      variant={Platform.OS === "android" ? "plain" : undefined}
+    />
+  ) : hasSearchQuery && threadSearch.failed ? (
+    <EmptyState
+      title={gt("Search failed")}
+      detail={gt('Couldn\'t search messages for "{query}". Change the search to try again.', {
+        query: props.searchQuery,
+      })}
+      variant={Platform.OS === "android" ? "plain" : undefined}
+    />
+  ) : hasSearchQuery ? (
+    <EmptyState
+      title={gt("No results")}
+      detail={gt('No threads matching "{query}".', { query: props.searchQuery })}
+      variant={Platform.OS === "android" ? "plain" : undefined}
+    />
+  ) : hasHiddenPinnedThreads ? (
+    <EmptyState
+      title={gt("Only pinned threads")}
+      detail={gt("Swipe right or tap the pin button to see your pinned threads.")}
+      variant={Platform.OS === "android" ? "plain" : undefined}
+    />
+  ) : v2ScopedProjectGroup !== null ? (
+    <EmptyState
+      title={gt("No threads in {name}", { name: v2ScopedProjectGroup.title })}
+      detail={gt("Choose another project or create a new task.")}
+      variant={Platform.OS === "android" ? "plain" : undefined}
+    />
+  ) : selectedEnvironmentLabel ? (
+    <EmptyState
+      title={gt("No threads in {name}", { name: selectedEnvironmentLabel })}
+      detail={gt("Choose another environment or create a new task.")}
+      variant={Platform.OS === "android" ? "plain" : undefined}
+    />
+  ) : (
+    <EmptyState
+      title={gt("No threads yet")}
+      detail={gt("Create a task to start a new coding session.")}
+      variant={Platform.OS === "android" ? "plain" : undefined}
+    />
+  );
 
   if (Platform.OS === "android" && threadListV2Items.length === 0) {
     return (
