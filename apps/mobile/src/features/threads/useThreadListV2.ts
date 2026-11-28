@@ -66,8 +66,11 @@ export function useThreadListV2(input: {
   readonly snoozedShelfExpanded: boolean;
   readonly settledShelfExpanded: boolean;
   readonly selectedThreadKey: string | null;
+  readonly pinnedSection?: LayoutInput["pinnedSection"];
 }) {
   const { threads, workingShelfEnabled } = input;
+  // The pinned-only list has no Settled shelf, so it never pages older settled threads in.
+  const pinnedOnly = input.pinnedSection === "only";
   const layoutTime = useMemo(
     () => threadListV2LayoutTime({ threads, now: input.now, searchQuery: input.searchQuery }),
     [threads, input.now, input.searchQuery],
@@ -127,9 +130,9 @@ export function useThreadListV2(input: {
   );
   const olderSettledShelf = useOlderSettledShelf({
     scopes,
-    expanded: input.settledShelfExpanded,
+    expanded: input.settledShelfExpanded && !pinnedOnly,
     // A search lists only matches, so the shelf would page forever; loaded pages stay.
-    visibleCount: input.searchQuery.trim().length === 0 ? input.settledLimit : 0,
+    visibleCount: input.searchQuery.trim().length === 0 && !pinnedOnly ? input.settledLimit : 0,
   });
   const { isListed, unloadedCount } = olderSettledShelf;
   const layout = useMemo(
@@ -153,6 +156,7 @@ export function useThreadListV2(input: {
         snoozedShelfExpanded: input.snoozedShelfExpanded,
         settledShelfExpanded: input.settledShelfExpanded,
         selectedThreadKey: input.selectedThreadKey,
+        pinnedSection: input.pinnedSection,
         isListedSettled: isListed,
         unloadedSettledCount: unloadedCount(
           threads.filter(
@@ -185,6 +189,7 @@ export function useThreadListV2(input: {
       input.snoozedShelfExpanded,
       input.settledShelfExpanded,
       input.selectedThreadKey,
+      input.pinnedSection,
       isListed,
       unloadedCount,
       scopes,

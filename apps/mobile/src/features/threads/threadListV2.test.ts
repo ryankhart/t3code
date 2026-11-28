@@ -337,6 +337,53 @@ describe("getThreadListV2OrderedSection", () => {
 });
 
 describe("buildThreadListV2Items", () => {
+  it("splits pinned threads off for the pinned drawer, but still finds them in a search", () => {
+    const threads = [
+      makeThread({ id: ThreadId.make("active"), title: "Active" }),
+      makeThread({
+        id: ThreadId.make("pinned-later"),
+        title: "Pinned later",
+        pinnedAt: NOW,
+        pinOrderKey: "t",
+      }),
+      makeThread({
+        id: ThreadId.make("pinned-first"),
+        title: "Pinned first",
+        pinnedAt: NOW,
+        pinOrderKey: "f",
+      }),
+      makeThread({ id: ThreadId.make("settled"), title: "Settled", settledOverride: "settled" }),
+    ];
+    const build = (pinnedSection: "include" | "exclude" | "only", searchQuery = "") =>
+      buildThreadListV2Items({
+        threads,
+        environmentId: null,
+        searchQuery,
+        now: NOW,
+        pinnedSection,
+      });
+
+    expect(build("include").items.map((item) => item.thread.id)).toEqual([
+      "pinned-first",
+      "pinned-later",
+      "active",
+      "settled",
+    ]);
+    const main = build("exclude");
+    expect(main.items.map((item) => item.thread.id)).toEqual(["active", "settled"]);
+    expect(main.settledCount).toBe(1);
+    const drawer = build("only");
+    expect(drawer.items.map((item) => [item.thread.id, item.isLast])).toEqual([
+      ["pinned-first", false],
+      ["pinned-later", true],
+    ]);
+    expect(drawer.settledCount).toBe(0);
+    expect(drawer.settledShelfHeaderIndex).toBeNull();
+    expect(build("exclude", "pinned").items.map((item) => item.thread.id)).toEqual(
+      expect.arrayContaining(["pinned-first", "pinned-later"]),
+    );
+  });
+
   it("hides snoozed threads and counts them — visibility parity with web", () => {
     const layout = buildThreadListV2Items({
       threads: [

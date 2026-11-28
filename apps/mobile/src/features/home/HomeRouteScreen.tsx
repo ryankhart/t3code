@@ -7,7 +7,10 @@ import { useMemo, useState } from "react";
 import { Platform } from "react-native";
 import { useGT, useMessages } from "gt-react-native";
 
-import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
+import type {
+  EnvironmentProject,
+  EnvironmentThreadShell,
+} from "@t3tools/client-runtime/state/shell";
 import { pickableProjectGroups } from "@t3tools/client-runtime/state/project-grouping";
 
 import { useProjects } from "../../state/entities";
@@ -21,6 +24,11 @@ import {
 } from "../layout/AdaptiveWorkspaceLayout";
 import { AndroidHomeFabLayout } from "./AndroidHomeFab";
 import { HomeScreen } from "./HomeScreen";
+import {
+  PinnedThreadsDrawerContent,
+  PinnedThreadsSwipeArea,
+  usePinnedThreadsDrawer,
+} from "./PinnedThreadsDrawer";
 import { useHomeListOptions } from "./home-list-options";
 import {
   runWhenHomeCovered,
@@ -42,8 +50,11 @@ import { WorkspaceListEmptyDetail } from "../layout/workspace/WorkspaceListEmpty
 import { WorkspaceListHeader } from "../layout/workspace/WorkspaceListHeader";
 import { buildHomeListFilterMenuItems, homeListFilterEnvironments } from "./home-list-filter-menu";
 
+const NO_PENDING_TASKS: ReturnType<typeof usePendingNewTasks> = [];
+
 export function HomeRouteScreen() {
   const gt = useGT();
+  const pinnedDrawer = usePinnedThreadsDrawer();
   const m = useMessages();
   const nativePrimaryColumn = use(NativePrimaryColumnContext);
   const { layout, setPrimarySidebarSearchQuery, startNewTask } = useAdaptiveWorkspaceLayout();
@@ -150,6 +161,53 @@ export function HomeRouteScreen() {
   const selectedProjectKey =
     resolveHomeProjectFilterScope(projectScopes, projects, listOptions)?.key ?? null;
 
+  const homeScreenProps = {
+    catalogState,
+    environments,
+    onAddConnection: () => openSettings(navigation, "SettingsEnvironmentNew"),
+    onArchiveThread: archiveThread,
+    onDeleteThread: confirmDeleteThread,
+    onSettleThread: settleThread,
+    onSnoozeThread: snoozeThread,
+    onUnsnoozeThread: unsnoozeThread,
+    onUnsettleThread: unsettleThread,
+    onPinThread: pinThread,
+    onUnpinThread: unpinThread,
+    onSetThreadAutoSettle: setThreadAutoSettle,
+    onMoveThread: moveThread,
+    onRenameThread: renameThread,
+    onRegenerateThreadTitle: regenerateThreadTitle,
+    onEnvironmentChange: setSelectedEnvironmentId,
+    onProjectChange: setSelectedProjectKey,
+    onOpenSettings: () => selectTab("settings"),
+    onSearchQueryChange: setSearchQuery,
+    onSelectThread: handleSelectThread,
+    onSelectPendingTask: openPendingTask,
+    onDeletePendingTask: confirmDeletePendingTask,
+    onNewThreadOnBranch: handleNewThreadOnBranch,
+    onNewThreadInProject: (project: EnvironmentProject) => {
+      selectThreadRoute({
+        draft: {
+          requestId: uuidv4(),
+          environmentId: String(project.environmentId),
+          projectId: String(project.id),
+          title: project.title,
+        },
+      });
+    },
+    onStartNewTask: startNewTask,
+    pendingTasks,
+    projectGroupingMode: listOptions.projectGroupingMode,
+    projects,
+    projectSortOrder: listOptions.projectSortOrder,
+    savedConnectionsById,
+    searchQuery,
+    selectedEnvironmentId,
+    selectedProjectKey,
+    threads,
+    visible,
+  };
+
   if (layout.usesSplitView && !nativePrimaryColumn) {
     return (
       <WorkspaceListEmptyDetail
@@ -166,6 +224,11 @@ export function HomeRouteScreen() {
         <WorkspaceListHeader
           accessibilityLabel={gt("T3 Code, Threads")}
           onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
+          pinnedThreads={
+            pinnedDrawer
+              ? { accessibilityLabel: gt("Pinned threads"), onPress: pinnedDrawer.open }
+              : undefined
+          }
           search={{
             value: searchQuery,
             onChangeText: setSearchQuery,
@@ -188,52 +251,20 @@ export function HomeRouteScreen() {
           }}
         />
 
-        <HomeScreen
-          catalogState={catalogState}
-          environments={environments}
-          onAddConnection={() => openSettings(navigation, "SettingsEnvironmentNew")}
-          onArchiveThread={archiveThread}
-          onDeleteThread={confirmDeleteThread}
-          onSettleThread={settleThread}
-          onSnoozeThread={snoozeThread}
-          onUnsnoozeThread={unsnoozeThread}
-          onUnsettleThread={unsettleThread}
-          onPinThread={pinThread}
-          onUnpinThread={unpinThread}
-          onSetThreadAutoSettle={setThreadAutoSettle}
-          onMoveThread={moveThread}
-          onRenameThread={renameThread}
-          onRegenerateThreadTitle={regenerateThreadTitle}
-          onEnvironmentChange={setSelectedEnvironmentId}
-          onProjectChange={setSelectedProjectKey}
-          onOpenSettings={() => selectTab("settings")}
-          onSearchQueryChange={setSearchQuery}
-          onSelectThread={handleSelectThread}
-          onSelectPendingTask={openPendingTask}
-          onDeletePendingTask={confirmDeletePendingTask}
-          onNewThreadOnBranch={handleNewThreadOnBranch}
-          onNewThreadInProject={(project) => {
-            selectThreadRoute({
-              draft: {
-                requestId: uuidv4(),
-                environmentId: String(project.environmentId),
-                projectId: String(project.id),
-                title: project.title,
-              },
-            });
-          }}
-          onStartNewTask={startNewTask}
-          pendingTasks={pendingTasks}
-          projectGroupingMode={listOptions.projectGroupingMode}
-          projects={projects}
-          projectSortOrder={listOptions.projectSortOrder}
-          savedConnectionsById={savedConnectionsById}
-          searchQuery={searchQuery}
-          selectedEnvironmentId={selectedEnvironmentId}
-          selectedProjectKey={selectedProjectKey}
-          threads={threads}
-          visible={visible}
-        />
+        <PinnedThreadsSwipeArea>
+          <HomeScreen {...homeScreenProps} pinnedSection={pinnedDrawer ? "exclude" : "include"} />
+        </PinnedThreadsSwipeArea>
+        <PinnedThreadsDrawerContent>
+          {pinnedDrawer?.shown ? (
+            <HomeScreen
+              {...homeScreenProps}
+              pinnedSection="only"
+              pendingTasks={NO_PENDING_TASKS}
+              searchQuery=""
+              visible
+            />
+          ) : null}
+        </PinnedThreadsDrawerContent>
         <ThreadUndoNotice visible={visible} />
       </>
     </AndroidHomeFabLayout>

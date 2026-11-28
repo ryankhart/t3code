@@ -671,6 +671,9 @@ function sortSettledThreadsReusingLast(
   return lastSettledOutput;
 }
 
+/** Where pinned threads list: at the top, left out, or alone. */
+export type ThreadListPinnedSection = "include" | "exclude" | "only";
+
 export function buildThreadListV2Items(input: {
   readonly pendingOrder?: PendingThreadOrder | null;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
@@ -697,8 +700,11 @@ export function buildThreadListV2Items(input: {
   readonly isListedSettled?: (thread: EnvironmentThreadShell) => boolean;
   /** Settled threads in scope that are not local (older settled threads not loaded). */
   readonly unloadedSettledCount?: number;
+  /** Android's phone list moves pinned threads into their own sidebar; a search still lists them. */
+  readonly pinnedSection?: ThreadListPinnedSection;
 }): ThreadListV2Layout {
   const now = input.now;
+  const pinnedSection = input.pinnedSection ?? "include";
   const pending =
     input.pendingOrder == null
       ? null
@@ -868,11 +874,9 @@ export function buildThreadListV2Items(input: {
         );
 
   const items: ThreadListV2Item[] = [];
-  for (const thread of applyPendingThreadOrder(
-    sortPinnedThreadsByOrderKey(pinned),
-    "pinned",
-    pending,
-  )) {
+  for (const thread of pinnedSection === "exclude"
+    ? []
+    : applyPendingThreadOrder(sortPinnedThreadsByOrderKey(pinned), "pinned", pending)) {
     items.push({
       thread,
       variant: "card",
@@ -924,6 +928,23 @@ export function buildThreadListV2Items(input: {
       wokeAt: null,
       isLast: false,
     });
+  }
+  if (pinnedSection === "only") {
+    return {
+      items: items.flatMap((item, index) =>
+        item.pinned ? [{ ...item, isLast: items[index + 1]?.pinned !== true }] : [],
+      ),
+      hiddenSettledCount: 0,
+      listedSettledThreads: [],
+      workingCount: 0,
+      workingShelfHeaderIndex: null,
+      snoozedCount: 0,
+      snoozedShelfHeaderIndex: null,
+      settledCount: 0,
+      settledShelfHeaderIndex: null,
+      nextSnoozeWakeAt,
+      contentOnlyThreadKeys,
+    };
   }
   const last = items.at(-1);
   if (last) {

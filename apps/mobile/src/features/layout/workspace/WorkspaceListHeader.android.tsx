@@ -61,6 +61,7 @@ export function WorkspaceListHeader(props: WorkspaceListHeaderProps) {
   return (
     <AppBar
       title="T3 Code"
+      pinnedThreads={props.pinnedThreads}
       titleContent={
         <WorkspaceBrandTitle
           accessibilityLabel={props.accessibilityLabel}

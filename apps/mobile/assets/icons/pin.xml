@@ -1,0 +1,8 @@
+<!-- Material Symbols push_pin, outlined, weight 400 (Apache-2.0), in absolute coordinates.
+     Fills only: Expo UI's vector parser does not support strokes. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="960" android:viewportHeight="960">
+    <path android:fillColor="#000000"
+        android:pathData="M640,480 L720,560 L720,640 L520,640 L520,880 L480,920 L440,880 L440,640 L240,640 L240,560 L320,480 L320,200 L280,200 L280,120 L680,120 L680,200 L640,200 L640,480 Z M354,560 L606,560 L560,514 L560,200 L400,200 L400,514 L354,560 Z" />
+</vector>

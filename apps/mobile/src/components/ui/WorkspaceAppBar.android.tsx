@@ -1,6 +1,6 @@
 import { useGT } from "gt-react-native";
 import { Box, Icon, IconButton, RNHostView } from "@expo/ui/jetpack-compose";
-import { semantics, size } from "@expo/ui/jetpack-compose/modifiers";
+import { clip, semantics, Shapes, size } from "@expo/ui/jetpack-compose/modifiers";
 import type { MenuAction } from "@react-native-menu/menu";
 import {
   createContext,
@@ -22,6 +22,7 @@ import { useToolbarLayout } from "./useToolbarLayout";
 const SEARCH_ICON = require("../../../assets/icons/search.xml");
 const FILTER_ICON = require("../../../assets/icons/filter.xml");
 const FILTER_FILLED_ICON = require("../../../assets/icons/filter-filled.xml");
+const PIN_ICON = require("../../../assets/icons/pin.xml");
 // Material TopAppBar: 48dp icon buttons, the last one 4dp from the end.
 const ACTION_SIZE = 48;
 const ACTION_END_INSET = 4;
@@ -29,6 +30,11 @@ const ACTION_END_INSET = 4;
 export interface WorkspaceAppBarProps {
   readonly title: string;
   readonly titleContent?: ReactNode;
+  /** Opens the pinned threads sidebar; drawn before the title. */
+  readonly pinnedThreads?: {
+    readonly accessibilityLabel: string;
+    readonly onPress: () => void;
+  };
   readonly search?: {
     readonly accessibilityLabel: string;
     readonly active: boolean;
@@ -129,7 +135,7 @@ export function WorkspaceAppBar(props: WorkspaceAppBarProps) {
  */
 function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
   const gt = useGT();
-  const { search, filter } = props;
+  const { search, filter, pinnedThreads } = props;
   const searching = search?.active === true;
   const { colors } = useControlTheme();
   const tint = colors["--color-header-foreground"];
@@ -195,6 +201,29 @@ function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
                   )}
                 </View>
               </RNHostView>
+            }
+            // Always present, clipped to nothing when unused: a slot inserted after the bar first
+            // composes never shows, and the host's first frame has no content yet.
+            nativeNavigationIcon={
+              <Box
+                modifiers={[
+                  pinnedThreads ? size(ACTION_SIZE, ACTION_SIZE) : size(0, 0),
+                  clip(Shapes.Rectangle),
+                ]}
+              >
+                <IconButton
+                  enabled={pinnedThreads !== undefined}
+                  onClick={pinnedThreads?.onPress}
+                  modifiers={[
+                    size(ACTION_SIZE, ACTION_SIZE),
+                    ...(pinnedThreads
+                      ? [semantics({ contentDescription: pinnedThreads.accessibilityLabel })]
+                      : []),
+                  ]}
+                >
+                  <Icon source={PIN_ICON} size={24} tint={pinnedThreads ? tint : "transparent"} />
+                </IconButton>
+              </Box>
             }
             // Both slots always exist: Expo UI applies a child insert or removal a frame before the
             // other children's new props, so changing the slot count drew the wrong glyph mid-switch.

@@ -16,6 +16,11 @@ export interface WorkspaceListHeaderProps {
     readonly customized: boolean;
     readonly items: ReadonlyArray<AppBarMenuItem>;
   };
+  /** Android phone layout: the pin button before the brand that opens the pinned threads. */
+  readonly pinnedThreads?: {
+    readonly accessibilityLabel: string;
+    readonly onPress: () => void;
+  };
   /** iOS: a settings button. Android reaches Settings from the workspace navigation. */
   readonly onOpenSettings?: () => void;
   /**
