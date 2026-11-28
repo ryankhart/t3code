@@ -42,7 +42,7 @@ export interface WorkspaceAppBarProps {
   readonly pinnedThreads?: {
     readonly accessibilityLabel: string;
     readonly onPress: () => void;
-    /** Pinned threads that need attention; the badge shows even at 0. */
+    /** Pinned threads that need attention; the badge hides at 0. */
     readonly badgeCount: number;
   };
   readonly search?: {
@@ -151,11 +151,11 @@ function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
   const tint = colors["--color-header-foreground"];
   const badgeCount = pinnedThreads?.badgeCount ?? 0;
   const badgeLabel = badgeCount > 99 ? "99+" : String(badgeCount);
-  const badge = !pinnedThreads
-    ? { container: "transparent", content: "transparent" }
-    : badgeCount > 0
+  // The badge stays in the tree and turns transparent at 0, for the same reason as the slot.
+  const badge =
+    pinnedThreads && badgeCount > 0
       ? { container: colors["--color-primary"], content: colors["--color-primary-foreground"] }
-      : { container: colors["--color-subtle-strong"], content: colors["--color-foreground-muted"] };
+      : { container: "transparent", content: "transparent" };
   const { height, paddingTop, paddingBottom } = useToolbarLayout();
   const filterMenu = filter ? (
     <AndroidAnchoredMenu

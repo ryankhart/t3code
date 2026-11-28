@@ -248,9 +248,10 @@ export function HomeRouteScreen() {
           pinnedThreads={
             pinnedDrawer
               ? {
-                  accessibilityLabel: gt("Pinned threads, {count} unread", {
-                    count: pinnedAttentionCount,
-                  }),
+                  accessibilityLabel:
+                    pinnedAttentionCount > 0
+                      ? gt("Pinned threads, {count} unread", { count: pinnedAttentionCount })
+                      : gt("Pinned threads"),
                   onPress: pinnedDrawer.open,
                   badgeCount: pinnedAttentionCount,
                 }
