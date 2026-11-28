@@ -115,7 +115,7 @@ export interface AppBarProps {
   readonly leading?: ReactNode;
   /** Android workspace bar only: a pin button before the title that opens the pinned threads. */
   readonly pinnedThreads?: Pick<AppBarAction, "accessibilityLabel" | "onPress"> & {
-    /** Pinned threads that need attention, shown on the button even at 0. */
+    /** Pinned threads that need attention, shown on the button above 0. */
     readonly badgeCount: number;
   };
   /**
