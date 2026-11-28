@@ -163,8 +163,8 @@ const composerHeightTransition: LayoutAnimationFunction = (values) => {
   };
 };
 const COMPOSER_LAYOUT_TRANSITION = Platform.OS === "android" ? undefined : composerHeightTransition;
-// Share of the one-row composer the draft keeps; a long model name truncates first.
-export const INLINE_EDITOR_MIN_WIDTH = "40%";
+// Share of the one-row composer the draft keeps; leaves room for a short model name like "Opus 5.5".
+export const INLINE_EDITOR_MIN_WIDTH = "30%";
 const INLINE_EDITOR_HEIGHT = 36;
 
 const AnimatedGlassSurface = Animated.createAnimatedComponent(GlassSurface);

@@ -19,7 +19,8 @@ export function ComposerModelControl(props: {
   readonly surfaceColor: string;
   readonly disabled?: boolean;
   readonly size?: "regular" | "large";
-  readonly iconOnly?: boolean;
+  /** Collapsed composer: just the icon and the short model name. */
+  readonly compact?: boolean;
   readonly onPress: () => void;
 }) {
   const gt = useGT();
@@ -43,14 +44,15 @@ export function ComposerModelControl(props: {
     : "";
   const badge = props.modelOption?.providerBadge;
   const label = props.modelOption?.label ?? props.selection?.model ?? gt("Choose model");
-  const providerNameLabel = badge
-    ? providerInstanceNameLabel({
-        provider: props.modelOption?.providerDriver,
-        iconUrl: props.modelOption?.providerIconUrl,
-        displayName: badge.displayName,
-        showBadge: badge.showBadge,
-      })
-    : null;
+  const providerNameLabel =
+    badge && !props.compact
+      ? providerInstanceNameLabel({
+          provider: props.modelOption?.providerDriver,
+          iconUrl: props.modelOption?.providerIconUrl,
+          displayName: badge.displayName,
+          showBadge: badge.showBadge,
+        })
+      : null;
   const shortLabel = props.modelOption?.shortName ?? label;
   return (
     <ComposerInlineControl
@@ -86,10 +88,10 @@ export function ComposerModelControl(props: {
       }
       label={providerNameLabel ?? shortLabel}
       labelEllipsizeMode={providerNameLabel ? "middle" : undefined}
-      iconOnly={props.iconOnly}
+      iconOnly={false}
       suffixWidth={providerNameLabel ? 96 : undefined}
       suffix={
-        providerNameLabel ? (
+        props.compact ? undefined : providerNameLabel ? (
           <Text
             className={
               props.size === "large"
