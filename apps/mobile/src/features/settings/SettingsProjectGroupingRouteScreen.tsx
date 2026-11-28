@@ -17,6 +17,7 @@ import { SettingsSection } from "./components/SettingsSection";
 import { LanguageSettingsSection } from "./SettingsLanguageRouteScreen";
 import {
   NewThreadButtonSettingsSection,
+  ReadFromLastPromptSettingsSection,
   NewThreadSettingsSection,
   WorkingSectionSettings,
 } from "./ThreadSettingsSections";
@@ -82,6 +83,7 @@ export function SettingsProjectGroupingRouteScreen() {
         <WorkingSectionSettings />
         <NewThreadSettingsSection />
         <NewThreadButtonSettingsSection />
+        <ReadFromLastPromptSettingsSection />
       </ScrollView>
     </SettingsScreen>
   );

@@ -1,3 +1,4 @@
+import { useClientSettings } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { type MessageId, type RunId } from "@t3tools/contracts";
 import { CHAT_LIST_ANCHOR_OFFSET } from "@t3tools/shared/chatList";
@@ -68,6 +69,8 @@ function createVisitScrollState(
     showScrollDebouncer: new Debouncer(() => showScrollToBottom(visit), { wait: 150 }),
     positionedAnchor: null as MessageId | null,
     settledAnchor: null as MessageId | null,
+    // Custom build: whether the reader scrolled since the timeline was last put at a prompt.
+    readerMoved: false,
     releaseAnchorScrollHold: null as (() => void) | null,
     pendingAnchorScrollRestore: null as {
       readonly messageId: MessageId;
@@ -178,6 +181,9 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     timelineAnchorMessageId,
     setTimelineAnchor,
   } = input;
+  // Custom build ("Start at my last prompt"): a sent prompt stays at the top while its
+  // reply grows below; only the reader's own scroll to the end follows the live end again.
+  const holdAtPrompt = useClientSettings((settings) => settings.readFromLastPrompt);
   const [visitState, setVisit] = useState<TimelineFollowVisit>({
     threadKey: activeThreadKey,
     followEnd: true,
@@ -339,6 +345,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
   }, [composerTimelineInset, readCurrentFollow, scrollToEndStable]);
 
   const handleNavigation = (navigation: TimelineNavigation) => {
+    if (navigation.source !== "command") visitScroll().readerMoved = true;
     const awayFromEnd = () => resolveTimelineIsAtEnd(legendListRef.current?.getState()) === false;
     const releases = navigationReleasesFollow(navigation, {
       contentScrollsUp: timelineRealContentOverflowsViewport,
@@ -379,6 +386,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     }
     stopAnchorPositioning(scroll);
     scroll.positionedAnchor = messageId;
+    scroll.readerMoved = false;
     // The positioning scroll moves up when the anchor sits above the view.
     const releaseHold = viewportRef.current?.holdProgrammaticScroll() ?? (() => {});
     scroll.releaseAnchorScrollHold = releaseHold;
@@ -418,6 +426,10 @@ export function useTimelineFollow(input: TimelineFollowInput) {
               scroll.settledAnchor = messageId;
               releaseHold();
               scroll.releaseAnchorScrollHold = null;
+              if (holdAtPrompt && visitScrollRef.current === scroll) {
+                const { before } = followStore.dispatch(scroll.visit, { type: "navigated" });
+                if (before.mode === "following") viewportRef.current?.followReleased();
+              }
             } else {
               abandon();
             }
@@ -475,11 +487,18 @@ export function useTimelineFollow(input: TimelineFollowInput) {
       return;
     }
     const { before, after } = followStore.dispatch(visit, {
-      type: isAtEnd ? "reachedEnd" : "leftEnd",
+      type: !isAtEnd
+        ? "leftEnd"
+        : holdAtPrompt && !scroll.readerMoved
+          ? "reachedEndHeld"
+          : "reachedEnd",
     });
     if (after === before) return;
     if (after.mode === "following") {
       setTimelineAnchor(releaseChatTimelineAnchor);
+      scroll.showScrollDebouncer.cancel();
+      setShowScrollToBottom(false);
+    } else if (after.atEnd) {
       scroll.showScrollDebouncer.cancel();
       setShowScrollToBottom(false);
     } else {
@@ -501,7 +520,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
   // be 0, so dropping it changes no size and no list event fires.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the timeline to the end after the commit that drops anchored end space
   useLayoutEffect(() => {
-    if (timelineAnchorMessageId === null || !timelineLiveFollowEnabled) return;
+    if (timelineAnchorMessageId === null || !timelineLiveFollowEnabled || holdAtPrompt) return;
     if (
       runningTurnHasReasoning ||
       shouldReleaseTimelineAnchorForToolActivity({
@@ -515,6 +534,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     }
   }, [
     activeRunningTurnId,
+    holdAtPrompt,
     runningTurnHasReasoning,
     scrollToEndStable,
     timelineAnchorMessageId,

@@ -578,6 +578,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.newThreadButtonTarget !== DEFAULT_UNIFIED_SETTINGS.newThreadButtonTarget
       ? ["New thread button"]
       : []),
+    ...(settings.readFromLastPrompt !== DEFAULT_UNIFIED_SETTINGS.readFromLastPrompt
+      ? ["Start at my last prompt"]
+      : []),
     ...(settings.readAloudVoice !== DEFAULT_UNIFIED_SETTINGS.readAloudVoice
       ? ["Read-aloud voice"]
       : []),
@@ -792,6 +795,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       newThreadButtonTarget: DEFAULT_UNIFIED_SETTINGS.newThreadButtonTarget,
+      readFromLastPrompt: DEFAULT_UNIFIED_SETTINGS.readFromLastPrompt,
       readAloudVoice: DEFAULT_UNIFIED_SETTINGS.readAloudVoice,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
@@ -1637,6 +1641,31 @@ export function ChatSettingsPanel() {
 
       <SettingsSection id="activity" title={gt("Activity")}>
         <ToolCallVisibilityRow />
+        <SettingsRow
+          {...setting("read-from-last-prompt")}
+          description="Keeps the prompt you sent at the top while the reply is written below it, and opens a chat at its last prompt. Off: chats open at the bottom and follow the reply down."
+          resetAction={
+            settings.readFromLastPrompt !== DEFAULT_UNIFIED_SETTINGS.readFromLastPrompt ? (
+              <SettingResetButton
+                ariaLabel="Reset start at my last prompt to default"
+                onClick={() =>
+                  updateSettings({
+                    readFromLastPrompt: DEFAULT_UNIFIED_SETTINGS.readFromLastPrompt,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.readFromLastPrompt}
+              onCheckedChange={(checked) =>
+                updateSettings({ readFromLastPrompt: Boolean(checked) })
+              }
+              aria-label="Start at my last prompt"
+            />
+          }
+        />
       </SettingsSection>
 
       <SettingsSection id="screen-reader" title={gt("Screen reader")}>

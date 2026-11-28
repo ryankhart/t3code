@@ -299,6 +299,28 @@ export function NewThreadButtonSettingsSection() {
   );
 }
 
+/** Phone-local, like desktop's own client setting of the same name. Unset means on. */
+export function ReadFromLastPromptSettingsSection() {
+  const savePreferences = useAtomCommand(saveMobilePreferences);
+  const preferences = useAtomValue(mobilePreferencesAtom);
+  const enabled =
+    !AsyncResult.isSuccess(preferences) || preferences.value.readFromLastPrompt !== false;
+
+  return (
+    <SettingsSection title="Reading replies">
+      <SettingsSwitchRow
+        icon="arrow.up"
+        label="Start at my last prompt"
+        subtitle="Keeps the prompt you sent at the top while the reply is written below it, and opens a chat at its last prompt. Off: chats open at the bottom and follow the reply down."
+        value={enabled}
+        onValueChange={(value) => {
+          void savePreferences({ readFromLastPrompt: value });
+        }}
+      />
+    </SettingsSection>
+  );
+}
+
 type MachineBetaSetting = "linkedEnvironmentsEnabled" | "fastWorktreeCheckout";
 
 const AGENT_FEEDBACK_CHOICES: ReadonlyArray<{

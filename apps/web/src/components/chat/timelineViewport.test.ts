@@ -56,6 +56,13 @@ describe("transitionTimelineFollow", () => {
     expect(transitionTimelineFollow(away, { type: "reachedEnd" })).toBe(FOLLOWING);
   });
 
+  it("stays released when content shrinks back to the end under a held prompt", () => {
+    expect(transitionTimelineFollow(releasedAway, { type: "reachedEndHeld" })).toEqual(
+      releasedAtEnd,
+    );
+    expect(transitionTimelineFollow(FOLLOWING, { type: "reachedEndHeld" })).toBe(FOLLOWING);
+  });
+
   it("follows the end on request from any state", () => {
     expect(transitionTimelineFollow(releasedAway, { type: "followEnd" })).toBe(FOLLOWING);
   });

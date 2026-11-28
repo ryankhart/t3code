@@ -530,6 +530,9 @@ function ThreadDetailBody(
   const toolCallVisibility = AsyncResult.isSuccess(preferences)
     ? (preferences.value.toolCallVisibility ?? "showAll")
     : "showAll";
+  // Custom build: on unless turned off in Settings > General.
+  const readFromLastPrompt =
+    !AsyncResult.isSuccess(preferences) || preferences.value.readFromLastPrompt !== false;
   const queuedCount = useThreadQueuedCount(props.selectedThreadDetailRef);
   const turnSubagents = useThreadTurnSubagents(props.selectedThreadDetailRef);
   const agentsSegment = resolveSubagentPillSegment(turnSubagents, messages);
@@ -1402,6 +1405,7 @@ function ThreadDetailBody(
       hasUserMessage,
       queuedMessageCount: props.selectedThreadQueueCount,
       deliveryDeferred: props.connectionStateLabel !== "connected",
+      anchorEveryPrompt: readFromLastPrompt,
     });
     setAnchorMessageId(nextAnchorMessageId);
     if (!dismissingKeyboard) composerEditorRef.current?.blur();
@@ -1506,6 +1510,8 @@ function ThreadDetailBody(
 
   const handleScrollToEnd = () => {
     void Haptics.selectionAsync();
+    // Custom build: asking for the end lets go of a held prompt, so the feed follows again.
+    if (readFromLastPrompt) setAnchorMessageId(null);
     void scrollMessageToEnd({ animated: !reduceMotion, closeKeyboard: false }).catch(() => {
       freeze.set(false);
     });
@@ -1638,6 +1644,7 @@ function ThreadDetailBody(
                     listRef={listRef}
                     freeze={freeze}
                     anchorMessageId={anchorMessageId}
+                    holdAtPrompt={readFromLastPrompt}
                     jumpToMessageId={jumpMessageLoaded ? jumpMessageId : null}
                     onJumpedToMessage={() => finishThreadMessageJump(selectedThreadKey)}
                     contentInsetEndAdjustment={combinedContentInsetEndAdjustment}

@@ -676,6 +676,9 @@ export const ClientSettingsSchema = Schema.Struct({
   newThreadButtonTarget: NewThreadButtonTarget.pipe(
     Schema.withDecodingDefault(Effect.succeed("pick-project")),
   ),
+  // Custom build: a sent prompt stays at the top while its reply is written below, and a
+  // chat opens at its last prompt instead of at the end.
+  readFromLastPrompt: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Voice for the read-aloud button on replies (an edge-tts voice name).
   readAloudVoice: Schema.String.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_READ_ALOUD_VOICE)),
@@ -2496,6 +2499,7 @@ export const ClientSettingsPatch = Schema.Struct({
   tabsEnabled: Schema.optionalKey(Schema.Boolean),
   sidebarWorkingShelfEnabled: Schema.optionalKey(Schema.Boolean),
   newThreadButtonTarget: Schema.optionalKey(NewThreadButtonTarget),
+  readFromLastPrompt: Schema.optionalKey(Schema.Boolean),
   readAloudVoice: Schema.optionalKey(Schema.String),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),
   sidebarProjectGroupingOverrides: Schema.optionalKey(

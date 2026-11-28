@@ -1,5 +1,39 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { measuredEndOffset, settleListScroll } from "./useTimelinePositionRestore";
+import { TIMELINE_MINIMAP_TARGET_OFFSET } from "./MessagesTimeline.logic";
+import {
+  measuredEndOffset,
+  resolveRestoreTarget,
+  settleListScroll,
+} from "./useTimelinePositionRestore";
+
+describe("resolveRestoreTarget", () => {
+  const rows = [{ id: "prompt-1" }, { id: "reply-1" }, { id: "prompt-2" }, { id: "reply-2" }];
+  const saved = { rowId: "reply-1", offsetWithinRow: 40, scrollOffset: 300, atEnd: false };
+
+  it("opens at the end when nothing asks for another place", () => {
+    expect(resolveRestoreTarget(rows, undefined, null)).toEqual({ target: undefined, index: -1 });
+    expect(resolveRestoreTarget(rows, { ...saved, atEnd: true }, null).target).toBeUndefined();
+  });
+
+  it("puts the last prompt at the top when no reading position was saved", () => {
+    expect(resolveRestoreTarget(rows, { ...saved, atEnd: true }, "prompt-2")).toEqual({
+      target: {
+        rowId: "prompt-2",
+        offsetWithinRow: -TIMELINE_MINIMAP_TARGET_OFFSET,
+        scrollOffset: 0,
+      },
+      index: 2,
+    });
+  });
+
+  it("keeps a saved reading position over the last prompt", () => {
+    expect(resolveRestoreTarget(rows, saved, "prompt-2")).toEqual({ target: saved, index: 1 });
+  });
+
+  it("falls back to the end when the prompt row is not in the list", () => {
+    expect(resolveRestoreTarget(rows, undefined, "gone").target).toBeUndefined();
+  });
+});
 
 describe("settleListScroll", () => {
   it("hands off when a streaming reply keeps moving the end", async () => {
