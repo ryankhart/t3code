@@ -1,4 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
+import type { ChatAlignment } from "@t3tools/contracts/settings";
 import { createStore } from "zustand";
 import type { ThreadPanelPresentation } from "../../rightPanelLayout";
 import type { DetailsCardMeasurement } from "./ChatCanvasContext";
@@ -90,7 +91,9 @@ export function resolveChatCanvasModel({
   threadRef,
   preview,
   detailsCardInlineOpen,
+  alignment = "center",
 }: {
+  alignment?: ChatAlignment;
   measurements: ChatCanvasMeasurements;
   detailsCardMeasurement: DetailsCardMeasurement | null;
   /** The thread whose details card sits on the canvas; other threads' measurements are stale. */
@@ -143,6 +146,7 @@ export function resolveChatCanvasModel({
     composerHeight: measurements.composerHeight,
     detailsCard,
     findBar,
+    alignment,
   });
   const detailsCardPlacement = resolveThreadDetailsCardLayout({
     container,

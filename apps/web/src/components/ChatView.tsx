@@ -2221,6 +2221,9 @@ export default function ChatView(props: ChatViewProps) {
       ? activePreviewMiniPlayer
       : null;
   const canvasPreview = useThreadPreviewCanvasSource(activeThreadRef, shownPreviewMiniPlayer);
+  // The new-thread hero stays centered: its headline and composer are a centered page of their own.
+  const chatAlignmentSetting = useClientSettings((settings) => settings.chatAlignment);
+  const chatAlignment = isDraftHeroState ? "center" : chatAlignmentSetting;
   const threadPanelInlineOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, activeThreadRef, "inline"),
   );
@@ -2235,6 +2238,7 @@ export default function ChatView(props: ChatViewProps) {
         threadRef: activeThreadRef,
         preview: canvasPreview,
         detailsCardInlineOpen: threadPanelInlineOpen,
+        alignment: chatAlignment,
       }).detailsCardMode,
   );
   const threadPanelOpen = useRightPanelStore((state) =>
@@ -3952,6 +3956,7 @@ export default function ChatView(props: ChatViewProps) {
             store={chatCanvasStore}
             threadRef={activeThreadRef}
             preview={canvasPreview}
+            alignment={chatAlignment}
             detailsCardTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
             composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
             data-chat-workspace-drop-target="true"

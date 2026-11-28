@@ -471,7 +471,7 @@ describe("ClientSettings chat width", () => {
     expect(decodeClientSettings({}).chatWidth).toBe("comfortable");
   });
 
-  it.each(["comfortable", "wide", "full"])("round-trips the %s width", (chatWidth) => {
+  it.each(["comfortable", "wide", "full", "custom"])("round-trips the %s width", (chatWidth) => {
     const settings = decodeClientSettings({ chatWidth });
     expect(encodeClientSettings(settings).chatWidth).toBe(chatWidth);
     expect(decodeClientSettingsPatch({ chatWidth }).chatWidth).toBe(chatWidth);
@@ -480,6 +480,35 @@ describe("ClientSettings chat width", () => {
   it("rejects unsupported widths", () => {
     expect(() => decodeClientSettings({ chatWidth: "huge" })).toThrow();
     expect(() => decodeClientSettingsPatch({ chatWidth: "huge" })).toThrow();
+  });
+
+  it("starts the custom width at the comfortable width and keeps a saved one", () => {
+    expect(decodeClientSettings({}).chatCustomWidthRem).toBe(46);
+    const settings = decodeClientSettings({ chatWidth: "custom", chatCustomWidthRem: 58 });
+    expect(encodeClientSettings(settings).chatCustomWidthRem).toBe(58);
+    expect(decodeClientSettingsPatch({ chatCustomWidthRem: 58 }).chatCustomWidthRem).toBe(58);
+  });
+
+  it.each([29, 121, 46.5])("rejects a custom width of %s rem", (chatCustomWidthRem) => {
+    expect(() => decodeClientSettings({ chatCustomWidthRem })).toThrow();
+    expect(() => decodeClientSettingsPatch({ chatCustomWidthRem })).toThrow();
+  });
+});
+
+describe("ClientSettings chat alignment", () => {
+  it("keeps the chat centered for existing settings without a saved alignment", () => {
+    expect(decodeClientSettings({}).chatAlignment).toBe("center");
+  });
+
+  it.each(["center", "start"])("round-trips the %s alignment", (chatAlignment) => {
+    const settings = decodeClientSettings({ chatAlignment });
+    expect(encodeClientSettings(settings).chatAlignment).toBe(chatAlignment);
+    expect(decodeClientSettingsPatch({ chatAlignment }).chatAlignment).toBe(chatAlignment);
+  });
+
+  it("rejects unsupported alignments", () => {
+    expect(() => decodeClientSettings({ chatAlignment: "right" })).toThrow();
+    expect(() => decodeClientSettingsPatch({ chatAlignment: "right" })).toThrow();
   });
 });
 

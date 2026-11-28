@@ -21,3 +21,6 @@ keeps the real preload subscribed across a remount with a delayed subscribe repl
 the primary-paste setting
 target of a symlinked Scratch
 opens an image from an expanded tool row
+# Added 2026-11-27: fails on unmodified munim-v0.1.67 (upstream made fast-forward a
+# supported merge method without updating the test).
+rejects unsupported project merge methods

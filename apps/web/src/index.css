@@ -129,6 +129,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --workspace-titlebar-control-gap: 0.75rem;
   --workspace-titlebar-scroll-fade-height: 1.5rem;
   --chat-content-max-width: 46rem;
+  --chat-content-min-width: 40rem;
+  /* Both side paddings of .chat-composer-lane and the timeline, for ChatCanvas's start alignment. */
+  --chat-lane-gutters: calc(env(safe-area-inset-left) + env(safe-area-inset-right) + 1.5rem);
   --html-preview-max-width: var(--chat-content-max-width);
   --thread-details-panel-width: 17.5rem;
   /* The prompt on phones: iOS zooms into any input under 16px on focus. */
@@ -2394,6 +2397,18 @@ code {
 
 :root[data-chat-width="full"] {
   --chat-content-max-width: 100%;
+}
+
+/* appInit sets --chat-custom-max-width. A custom width under the usual minimum lowers it too. */
+:root[data-chat-width="custom"] {
+  --chat-content-max-width: var(--chat-custom-max-width, 46rem);
+  --chat-content-min-width: min(40rem, var(--chat-custom-max-width, 46rem));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --chat-lane-gutters: calc(env(safe-area-inset-left) + env(safe-area-inset-right) + 6rem);
+  }
 }
 
 /* HTML preview width setting. ChatCanvas measures this and never lays a

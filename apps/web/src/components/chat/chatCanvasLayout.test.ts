@@ -419,3 +419,45 @@ describe("workspace card beside chat", () => {
     expect(place(900, 1344)).toBeNull();
   });
 });
+
+describe("start-aligned chat canvas layout", () => {
+  const start = (
+    width: number,
+    options: Partial<Parameters<typeof resolveChatCanvasLayout>[0]> = {},
+  ) =>
+    resolveChatCanvasLayout({
+      container: { width, height: 988 },
+      maxChatWidth: 736,
+      preview: null,
+      alignment: "start",
+      ...options,
+    });
+  it("keeps the chat at the leading edge with no inset at any canvas width", () => {
+    for (const width of [700, 832, 1344, 2200, 3200]) {
+      expect(start(width).chat).toEqual({
+        left: 48,
+        width: Math.min(736, width - 96),
+        insetStart: 0,
+        insetEnd: 0,
+      });
+    }
+  });
+  it("narrows the chat for a details card without moving it", () => {
+    const { chat } = start(1000, { detailsCard: { left: 708, right: 988, bottom: 339 } });
+    expect(chat).toEqual({ left: 48, width: 708 - 32 - 48, insetStart: 0, insetEnd: 276 });
+  });
+  it("leaves the chat alone when a mini player clears it", () => {
+    const result = start(1600, { preview: { ...preview, position: { x: 1200, y: 500 } } });
+    expect(result.chat).toEqual({ left: 48, width: 736, insetStart: 0, insetEnd: 0 });
+    expect(result.overlapsChat).toBe(false);
+  });
+  it("narrows the chat beside a mini player that reaches into it", () => {
+    const result = start(1200, { preview: { ...preview, position: { x: 760, y: 500 } } });
+    expect(result.chat).toEqual({ left: 48, width: 700, insetStart: 0, insetEnd: 404 });
+    expectClear(result);
+  });
+  it("starts a wider HTML preview at the chat's leading edge", () => {
+    const result = start(1600, { maxHtmlPreviewWidth: 1152 });
+    expect(result.htmlPreview).toEqual({ left: 48, width: 1152 });
+  });
+});
