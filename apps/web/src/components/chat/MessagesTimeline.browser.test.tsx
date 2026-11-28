@@ -22,6 +22,7 @@ import {
   createRef,
   Profiler,
   StrictMode,
+  useRef,
   useState,
   type ComponentProps,
   type ReactElement,
@@ -37,7 +38,7 @@ import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
-import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
+import { resolveTimelineIsAtEnd, TIMELINE_MINIMAP_TARGET_OFFSET } from "./MessagesTimeline.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import {
   type PendingApproval,
@@ -59,6 +60,7 @@ import { __setClientSettingsForTests } from "../../hooks/useSettings";
 import type { CitedHistory } from "./citationProcedure";
 import type { TimelineNavigation } from "./timelineViewport";
 import { rememberTimelinePosition } from "./timelineScrollAnchoring";
+import { useTimelineFollow } from "./useTimelineFollow";
 import {
   COMPOSER_CONTEXT_CLIPBOARD_MIME,
   decodeComposerContextFragment,
@@ -252,6 +254,11 @@ function setup({ scheduledTasks = [] as ReadonlyArray<{ id: string; title: strin
   environmentQuery.error = "Pull request not found";
   environmentQuery.data = { tasks: scheduledTasks };
 }
+
+// Custom build: these tests describe a timeline that opens at its end and follows it, which
+// is "Start at my last prompt" turned off. Its own tests turn it on, then restore this.
+const TEST_CLIENT_SETTINGS = { ...DEFAULT_CLIENT_SETTINGS, readFromLastPrompt: false };
+__setClientSettingsForTests(TEST_CLIENT_SETTINGS);
 
 const TASK_ID = ScheduledTaskId.make("task-1");
 const AUTOMATION_PROMPT = "Triage the inbox\n\nLabel every new issue and close duplicates.";
@@ -508,10 +515,10 @@ describe("MessagesTimeline work rows", () => {
   it("opens a web search result in the thread's Browser when links open in T3 Code", async () => {
     setup();
     previewAccess.granted = true;
-    __setClientSettingsForTests({ ...DEFAULT_CLIENT_SETTINGS, browserLinkTarget: "app" });
+    __setClientSettingsForTests({ ...TEST_CLIENT_SETTINGS, browserLinkTarget: "app" });
     onTestFinished(() => {
       previewAccess.granted = false;
-      __setClientSettingsForTests(DEFAULT_CLIENT_SETTINGS);
+      __setClientSettingsForTests(TEST_CLIENT_SETTINGS);
     });
     await using screen = await renderTimeline([
       work("web-search", {
@@ -2900,6 +2907,211 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
 });
 
 // Custom build: the Previous prompt button.
+describe("MessagesTimeline start at my last prompt", () => {
+  const longAnswer = (index: number) =>
+    Array.from({ length: 40 }, (_, line) => `Answer ${index} paragraph ${line}.`).join("\n\n");
+  const conversation = (turns: number) =>
+    Array.from({ length: turns }, (_, index) => [
+      message(`Question ${index}`, {}, `user-${index}`),
+      message(longAnswer(index), { role: "assistant" }, `assistant-${index}`),
+    ]).flat();
+  const promptOffset = (container: HTMLElement, viewport: HTMLElement, index: number) => {
+    const prompt = container.querySelector(`[data-timeline-row-id="entry-user-${index}"]`);
+    return prompt
+      ? prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top
+      : null;
+  };
+  const turnOn = () => {
+    __setClientSettingsForTests({ ...DEFAULT_CLIENT_SETTINGS, readFromLastPrompt: true });
+    onTestFinished(() => __setClientSettingsForTests(TEST_CLIENT_SETTINGS));
+  };
+
+  it("opens a chat with its last prompt at the top and lets go of the end", async () => {
+    setup();
+    turnOn();
+    const atEnd: boolean[] = [];
+    const props = { ...baseProps(), onIsAtEndChange: (value: boolean) => atEnd.push(value) };
+    await using screen = await renderTimeline(conversation(4), props);
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    await vi.waitFor(() => {
+      const offset = promptOffset(screen.container, viewport, 3);
+      expect(offset).not.toBeNull();
+      expect(Math.abs(offset! - TIMELINE_MINIMAP_TARGET_OFFSET)).toBeLessThanOrEqual(2);
+      expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeGreaterThan(
+        100,
+      );
+      expect(atEnd.at(-1)).toBe(false);
+    });
+  });
+
+  it("opens a chat it switches to with that chat's last prompt at the top", async () => {
+    setup();
+    turnOn();
+    const base = baseProps();
+    await using screen = await renderElement(
+      <MessagesTimeline {...base} timelineEntries={[message("Short thread")]} />,
+    );
+    await screen.rerender(
+      <MessagesTimeline
+        {...base}
+        routeThreadKey="environment-local:thread-last-prompt-switch"
+        timelineEntries={conversation(3)}
+      />,
+    );
+    const viewport = base.listRef.current!.getScrollableNode()!;
+    await vi.waitFor(() => {
+      const offset = promptOffset(screen.container, viewport, 2);
+      expect(offset).not.toBeNull();
+      expect(Math.abs(offset! - TIMELINE_MINIMAP_TARGET_OFFSET)).toBeLessThanOrEqual(2);
+    });
+  });
+
+  // The timeline wired to its follow hook, as ChatView wires it.
+  const FOLLOW_THREAD = "environment-local:thread-follow-harness";
+  const FOLLOW_RUN = RunId.make("run-follow");
+  interface FollowHandle {
+    anchorNewTurn: (threadKey: string, messageId: MessageId) => void;
+    list: LegendListRef | null;
+    showScrollToBottom: boolean;
+  }
+  function FollowHarness(props: {
+    readonly entries: ReadonlyArray<Entry>;
+    readonly running: boolean;
+    readonly handle: { current: FollowHandle | null };
+  }) {
+    const listRef = useRef<LegendListRef | null>(null);
+    const [anchor, setAnchor] = useState<{
+      readonly threadKey: string | null;
+      readonly messageId: MessageId | null;
+    }>({ threadKey: FOLLOW_THREAD, messageId: null });
+    const follow = useTimelineFollow({
+      legendListRef: listRef,
+      composerTimelineInset: 0,
+      routeThreadKey: FOLLOW_THREAD,
+      activeThreadKey: FOLLOW_THREAD,
+      isServerThread: false,
+      serverProjection: null,
+      threadStatus: "live",
+      activeActivityRun: null,
+      activeRunningTurnId: props.running ? FOLLOW_RUN : null,
+      timelineEntries: props.entries as Entry[],
+      timelineAnchorMessageId: anchor.messageId,
+      setTimelineAnchor: setAnchor,
+    });
+    const { handle } = props;
+    return (
+      <div
+        ref={() => {
+          handle.current = {
+            anchorNewTurn: follow.anchorNewTurn,
+            list: listRef.current,
+            showScrollToBottom: follow.showScrollToBottom,
+          };
+        }}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <MessagesTimeline
+          {...baseProps()}
+          listRef={listRef}
+          routeThreadKey={FOLLOW_THREAD}
+          timelineEntries={props.entries as Entry[]}
+          isWorking={props.running}
+          runningRunId={props.running ? FOLLOW_RUN : null}
+          anchorMessageId={anchor.messageId}
+          onAnchorReady={follow.onTimelineAnchorReadyStable}
+          onAnchorSizeChanged={follow.onTimelineAnchorSizeChangedStable}
+          liveFollowEnabled={follow.timelineLiveFollowEnabled}
+          onIsAtEndChange={follow.onIsAtEndChangeStable}
+          onViewportAttach={follow.attachTimelineViewport}
+          onFooterGrow={follow.onTimelineFooterGrowStable}
+        />
+      </div>
+    );
+  }
+  const sendAndStream = async (readFromLastPrompt: boolean) => {
+    setup();
+    __setClientSettingsForTests({ ...DEFAULT_CLIENT_SETTINGS, readFromLastPrompt });
+    onTestFinished(() => __setClientSettingsForTests(TEST_CLIENT_SETTINGS));
+    const handle: { current: FollowHandle | null } = { current: null };
+    const history = conversation(3);
+    const screen = await renderElement(
+      <FollowHarness entries={history} running={false} handle={handle} />,
+    );
+    await vi.waitFor(() => expect(handle.current?.list?.getScrollableNode()).toBeTruthy());
+    const viewport = handle.current!.list!.getScrollableNode()!;
+    const fromEnd = () => viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+    await vi.waitFor(() => expect(viewport.scrollTop).toBeGreaterThan(0));
+
+    // Send a follow-up: ChatView arms the anchor, then the optimistic row appears.
+    const sent = [...history, message("Question 3", {}, "user-3")];
+    await act(async () => handle.current!.anchorNewTurn(FOLLOW_THREAD, MessageId.make("user-3")));
+    await screen.rerender(<FollowHarness entries={sent} running handle={handle} />);
+    await vi.waitFor(() => expect(promptOffset(screen.container, viewport, 3)).not.toBeNull());
+
+    // The reply arrives: tool activity first, then an answer far taller than the screen.
+    const replying = [
+      ...sent,
+      work("work-follow", { label: "Ran command", tone: "tool", runId: FOLLOW_RUN }),
+      message(longAnswer(3), { role: "assistant", runId: FOLLOW_RUN }, "assistant-3"),
+    ];
+    await screen.rerender(<FollowHarness entries={replying} running handle={handle} />);
+    return { screen, viewport, fromEnd, handle };
+  };
+
+  it("keeps a sent prompt at the top while its reply grows below", async () => {
+    const { screen, viewport, fromEnd, handle } = await sendAndStream(true);
+    await using _screen = screen;
+    await vi.waitFor(
+      () => {
+        const offset = promptOffset(screen.container, viewport, 3);
+        expect(offset).not.toBeNull();
+        expect(offset!).toBeGreaterThanOrEqual(0);
+        expect(offset!).toBeLessThan(80);
+        expect(fromEnd()).toBeGreaterThan(200);
+        expect(handle.current!.showScrollToBottom).toBe(true);
+      },
+      { timeout: 4000 },
+    );
+  });
+
+  it("follows the reply to the bottom when the setting is off", async () => {
+    const { screen, fromEnd } = await sendAndStream(false);
+    await using _screen = screen;
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(4), { timeout: 4000 });
+  });
+
+  it("returns to a saved reading position instead of the last prompt", async () => {
+    setup();
+    turnOn();
+    const base = baseProps();
+    const other = "environment-local:thread-last-prompt-saved";
+    rememberTimelinePosition(
+      other,
+      { rowId: "entry-assistant-0", offsetWithinRow: 0, scrollOffset: 0, atEnd: false },
+      false,
+    );
+    await using screen = await renderElement(
+      <MessagesTimeline {...base} timelineEntries={[message("Short thread")]} />,
+    );
+    await screen.rerender(
+      <MessagesTimeline
+        {...base}
+        routeThreadKey={other}
+        timelineEntries={conversation(3)}
+        liveFollowEnabled={false}
+      />,
+    );
+    const viewport = base.listRef.current!.getScrollableNode()!;
+    await vi.waitFor(() => {
+      const row = screen.container.querySelector('[data-timeline-row-id="entry-assistant-0"]');
+      expect(row).not.toBeNull();
+      expect(
+        Math.abs(row!.getBoundingClientRect().top - viewport.getBoundingClientRect().top),
+      ).toBeLessThanOrEqual(2);
+    });
+  });
+});
+
 describe("MessagesTimeline prompt jump buttons", () => {
   it("walks back and forward one prompt per press", async () => {
     setup();

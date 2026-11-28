@@ -7,6 +7,8 @@ export interface ChatListAnchoredEndSpace {
 
 export interface ChatListAnchorOptions {
   readonly anchorOffset?: number;
+  /** Custom build: anchor the message wherever it sits, not only a thread's first prompt. */
+  readonly anyPrompt?: boolean;
 }
 
 export function resolveChatListAnchoredEndSpace<Item, AnchorId>(
@@ -27,6 +29,10 @@ export function resolveChatListAnchoredEndSpace<Item, AnchorId>(
 
     const itemAnchorId = getAnchorId(item);
     if (itemAnchorId === null) {
+      continue;
+    }
+
+    if (options.anyPrompt && itemAnchorId !== anchorId) {
       continue;
     }
 

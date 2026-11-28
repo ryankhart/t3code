@@ -26,6 +26,25 @@ describe("tool-group scroll restoration", () => {
 });
 
 describe("resolveThreadFeedSubmissionAnchor", () => {
+  it("anchors every prompt that starts now when asked to", () => {
+    const followUp = {
+      currentAnchorMessageId: "first-message",
+      submittedMessageId: "follow-up",
+      hasStartedTurn: true,
+      hasUserMessage: true,
+      queuedMessageCount: 0,
+      deliveryDeferred: false,
+      anchorEveryPrompt: true,
+    };
+    expect(resolveThreadFeedSubmissionAnchor(followUp)).toBe("follow-up");
+    expect(resolveThreadFeedSubmissionAnchor({ ...followUp, queuedMessageCount: 1 })).toBe(
+      "first-message",
+    );
+    expect(resolveThreadFeedSubmissionAnchor({ ...followUp, deliveryDeferred: true })).toBe(
+      "first-message",
+    );
+  });
+
   it("keeps an offline first message at the end", () => {
     expect(
       resolveThreadFeedSubmissionAnchor({

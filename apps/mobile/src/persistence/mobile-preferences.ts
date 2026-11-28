@@ -193,6 +193,8 @@ export interface Preferences {
   readonly issueSavedViews?: ReadonlyArray<IssueSavedView>;
   // New thread button: "No project" starts a No project thread without the picker.
   readonly newThreadButtonTarget?: NewThreadButtonTarget;
+  // Start at my last prompt: unset means on (see ThreadFeed's holdAtPrompt).
+  readonly readFromLastPrompt?: boolean;
   // Read aloud: the Edge natural voice the PC's read-aloud server speaks with.
   readonly readAloudVoice?: string;
   // Dictation style: how speech becomes text (Settings > Voice).
@@ -289,6 +291,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     pullRequestSavedViews?: ReadonlyArray<PullRequestSavedView>;
     issueSavedViews?: ReadonlyArray<IssueSavedView>;
     newThreadButtonTarget?: NewThreadButtonTarget;
+    readFromLastPrompt?: boolean;
     readAloudVoice?: string;
     dictationStyle?: Partial<DictationStyle>;
   } = {};
@@ -475,6 +478,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   // New thread button.
   if (isNewThreadButtonTarget(parsed.newThreadButtonTarget)) {
     preferences.newThreadButtonTarget = parsed.newThreadButtonTarget;
+  }
+  if (typeof parsed.readFromLastPrompt === "boolean") {
+    preferences.readFromLastPrompt = parsed.readFromLastPrompt;
   }
   // Read aloud.
   if (

@@ -874,6 +874,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("enter return command ctrl multiline prompt new line composer")],
   },
   {
+    id: "read-from-last-prompt",
+    title: "Start at my last prompt",
+    to: "/settings/chat",
+    searchTerms: ["scroll position top bottom follow reply open chat return anchor read"],
+  },
+  {
     id: "follow-up-behavior",
     title: msg("Follow-up behavior"),
     to: "/settings/chat",

@@ -482,8 +482,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   // A list that opens on a thread with find open takes the opening step below,
   // so the restore runs and releases follow once for find.
+  // Custom build: "Start at my last prompt" opens a chat there, so the opening restore runs too.
+  const readFromLastPrompt = useClientSettings((settings) => settings.readFromLastPrompt);
   const [positionedThreadKey, setPositionedThreadKey] = useState<string | null>(() =>
-    listState.rememberedPosition?.atEnd === false || findOpen ? null : listIdentityKey,
+    listState.rememberedPosition?.atEnd === false || findOpen || readFromLastPrompt
+      ? null
+      : listIdentityKey,
   );
   const restoringThreadPosition = positionedThreadKey !== listIdentityKey;
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
@@ -817,10 +821,23 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const runs = useStableHandoffRuns(runsProp);
   const minimapItems = deriveTimelineMinimapItems(rows);
   const minimapRowIndices = minimapItems.map((item) => item.rowIndex);
+  // Custom build: with no saved reading position, the chat opens with its last prompt at the top.
+  const openAtRowId =
+    readFromLastPrompt &&
+    restoringThreadPosition &&
+    rememberedPosition?.atEnd !== false &&
+    !(identityChanged ? findOpen : listState.findOpenAtOpening) &&
+    citationRequest === null &&
+    searchRequest === null
+      ? (rows.findLast((row) => row.kind === "message" && row.message.role === "user")?.id ?? null)
+      : null;
+  const restoreRowId = !restoringThreadPosition
+    ? null
+    : rememberedPosition?.atEnd === false
+      ? rememberedPosition.rowId
+      : openAtRowId;
   const restoreRowIndex =
-    restoringThreadPosition && rememberedPosition?.atEnd === false
-      ? rows.findIndex((row) => row.id === rememberedPosition.rowId)
-      : -1;
+    restoreRowId === null ? -1 : rows.findIndex((row) => row.id === restoreRowId);
   const restoringAlwaysRender =
     restoringThreadPosition && restoreRowIndex >= 0 ? { indices: [restoreRowIndex] } : undefined;
   const showsEmptyState =
@@ -855,6 +872,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       listIdentityKey,
       listOpenedOn,
       rememberedPosition,
+      openAtRowId,
       citationPending: citationRequest !== null,
       releaseForFind: findOpenAtOpening,
       onPositioned: setPositionedThreadKey,
@@ -865,6 +883,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     listIdentityKey,
     listOpenedOn,
     listRef,
+    openAtRowId,
     rememberedPosition,
     restoreReady,
     viewportRef,
@@ -980,7 +999,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     rows,
     anchorMessageId,
     (row) => (row.kind === "message" && row.message.role === "user" ? row.message.id : null),
-    { anchorOffset: CHAT_TIMELINE_ANCHOR_OFFSET },
+    { anchorOffset: CHAT_TIMELINE_ANCHOR_OFFSET, anyPrompt: readFromLastPrompt },
   );
   const anchoredEndSpace = anchoredEndSpaceConfig
     ? {
@@ -1149,6 +1168,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
     }
     handleScroll();
   });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a restore that lands at the last prompt fires no scroll event, so follow would not learn the end is out of view
+  useLayoutEffect(() => {
+    if (readFromLastPrompt && !restoringThreadPosition) handleContentSizeChanged(null);
+  }, [handleContentSizeChanged, readFromLastPrompt, restoringThreadPosition]);
   // The content lane only moves or changes width with the viewport, the chat
   // width setting or the canvas insets (which resize its row frame), never with
   // streamed content; measuring per content frame would force a layout on every chunk.
@@ -1574,7 +1597,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
               maintainScrollAtEnd={
                 citationPositioning ||
                 searchPositioning ||
-                (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
+                (restoringThreadPosition &&
+                  (rememberedPosition?.atEnd === false || openAtRowId !== null)) ||
                 anchoredEndSpace ||
                 !liveFollowEnabled ||
                 fullscreenAppRowId !== null

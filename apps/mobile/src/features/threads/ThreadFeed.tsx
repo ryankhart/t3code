@@ -415,6 +415,12 @@ export interface ThreadFeedProps {
   readonly listRef: RefObject<LegendListRef | null>;
   readonly freeze: SharedValue<boolean>;
   readonly anchorMessageId: MessageId | null;
+  /**
+   * Custom build ("Start at my last prompt"): the thread opens with its last prompt at the
+   * top, and a sent prompt (`anchorMessageId`, any prompt rather than only the first) stays
+   * there while its reply grows below: the feed does not follow the reply down.
+   */
+  readonly holdAtPrompt?: boolean;
   /** A message to scroll to once it is in the feed; see `onJumpedToMessage`. */
   readonly jumpToMessageId?: MessageId | null;
   readonly onJumpedToMessage?: () => void;
@@ -1200,6 +1206,8 @@ function MessageAttachmentUnknown(props: { readonly name: string }) {
 }
 
 // LegendList only computes hook visibility when the list has a viewability config.
+// Where "Start at my last prompt" lands the prompt; the Previous prompt button uses the same.
+const OPENING_PROMPT_VIEW_OFFSET = 12;
 const THREAD_MEDIA_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 0 };
 
 // The composer and overlays beside the feed keep UIKit from finding it on its own, so
@@ -3850,19 +3858,34 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // still leave it hundreds of points short of the end; isAtEnd stays true through that.
   const settling = props.feed.length > 0 && landedListKey !== feedThreadKey;
   const landingFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reportMetrics = (ready: boolean) => {
+  // Custom build ("Start at my last prompt"): the thread opens at its last prompt, placed the
+  // way a message jump is, with end following off until it lands.
+  const [opening, setOpening] = useState<{
+    readonly key: string;
+    readonly messageId: MessageId | null;
+    readonly landed: boolean;
+  } | null>(null);
+  const openingHere = opening?.key === feedThreadKey ? opening : null;
+  const openingPending =
+    props.holdAtPrompt === true && !props.jumpToMessageId && openingHere?.landed !== true;
+  // A sent prompt stays at the top: no end following while it is the anchor. The parent drops
+  // the anchor when the reader asks for the end (Bottom).
+  const holdingSentPrompt = props.holdAtPrompt === true && props.anchorMessageId !== null;
+  const reportMetrics = (ready: boolean, openingStillPending: boolean = openingPending) => {
     const state = listRef.current?.getState();
     if (!state) return;
     if (
       settling &&
       ready &&
+      !openingStillPending &&
       (state.distanceFromEnd <= 2 || !state.isFollowingEnd || props.jumpToMessageId)
     ) {
       setLandedListKey(feedThreadKey);
     }
     // Offset 0 before the first positioning, and the gaps while rows measure in, are not the
-    // user leaving the end; only a scroll away stops end following.
-    onIsAtEndChange?.(settling || state.isAtEnd || state.isFollowingEnd);
+    // user leaving the end; only a scroll away stops end following. A held prompt is not
+    // following, whatever the list's flag still says.
+    onIsAtEndChange?.(settling || state.isAtEnd || (state.isFollowingEnd && !holdingSentPrompt));
   };
   const handleMetricsChange = () => reportMetrics(loadedListKey === feedThreadKey);
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -3990,8 +4013,41 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     presentedFeed,
     props.anchorMessageId,
     (entry) => (entry.type === "message" ? entry.id : null),
-    { anchorOffset: anchorTopInset + CHAT_LIST_ANCHOR_OFFSET },
+    {
+      anchorOffset: anchorTopInset + CHAT_LIST_ANCHOR_OFFSET,
+      anyPrompt: props.holdAtPrompt === true,
+    },
   );
+  const openingReady = openingHere !== null && !openingHere.landed;
+  const openingIndex = openingReady
+    ? presentedFeed.findLastIndex(
+        (entry) => entry.type === "message" && entry.id === openingHere.messageId,
+      )
+    : null;
+  const landOpening = useEffectEvent((index: number) => {
+    const list = listRef.current;
+    if (!list) return;
+    let cancelled = false;
+    const positioning =
+      index === -1
+        ? undefined
+        : list.scrollToIndex({ index, viewOffset: OPENING_PROMPT_VIEW_OFFSET, animated: false });
+    void Promise.resolve(positioning).then(() => {
+      if (cancelled || listRef.current !== list) return;
+      setOpening((current) =>
+        current?.key === feedThreadKey ? { ...current, landed: true } : current,
+      );
+      setLandedListKey(feedThreadKey);
+    });
+    return () => {
+      cancelled = true;
+    };
+  });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the native list to the last prompt after the commit that turned end following off
+  useEffect(() => {
+    if (openingIndex !== null) return landOpening(openingIndex);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Another thread whose last prompt has the same row index must still land.
+  }, [openingIndex, feedThreadKey]);
   const failedRunIds = failedFeedRunIds(props.feed, props.latestRun);
   const terminalAssistantMessageIds = (() => {
     const terminalIdsByTurn = new Map<RunId, string>();
@@ -4482,7 +4538,11 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             keyboardOffset={props.keyboardOffset}
             {...(usesNativeAutomaticInsets ? { contentInset: { top: anchorTopInset } } : {})}
             freeze={props.freeze}
-            maintainScrollAtEnd={jumpReady ? false : THREAD_FEED_MAINTAIN_SCROLL_AT_END}
+            maintainScrollAtEnd={
+              jumpReady || openingReady || holdingSentPrompt
+                ? false
+                : THREAD_FEED_MAINTAIN_SCROLL_AT_END
+            }
             maintainScrollAtEndThreshold={THREAD_FEED_MAINTAIN_SCROLL_AT_END_THRESHOLD}
             maintainVisibleContentPosition
             data={groupedFeed}
@@ -4533,9 +4593,28 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             initialScrollAtEnd
             onReady={() => {
               setLoadedListKey(feedThreadKey);
-              reportMetrics(true);
+              let openingStillPending = openingPending;
+              if (props.holdAtPrompt && !props.jumpToMessageId && openingHere === null) {
+                const lastPrompt = presentedFeed.findLast(
+                  (entry) => entry.type === "message" && entry.message.role === "user",
+                );
+                const messageId = lastPrompt?.type === "message" ? lastPrompt.message.id : null;
+                // A prompt sent before the list was ready is placed by its anchor instead.
+                const landed = messageId === null || props.anchorMessageId !== null;
+                setOpening({ key: feedThreadKey, messageId, landed });
+                openingStillPending = !landed;
+              }
+              reportMetrics(true, openingStillPending);
               // Never leave the feed hidden if end following stalls short of the end.
-              landingFallback.current = setTimeout(() => setLandedListKey(feedThreadKey), 1000);
+              landingFallback.current = setTimeout(() => {
+                setLandedListKey(feedThreadKey);
+                // An opening scroll that never reports back must not keep end following off.
+                setOpening((current) =>
+                  current?.key === feedThreadKey && !current.landed
+                    ? { ...current, landed: true }
+                    : current,
+                );
+              }, 1000);
             }}
             onLayout={handleMetricsChange}
             onItemSizeChanged={handleItemSizeChanged}
