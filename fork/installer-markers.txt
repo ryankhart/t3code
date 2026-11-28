@@ -17,3 +17,4 @@ Can't snooze while the thread is waiting on you
 data-next-prompt
 Talk mode: I said this out loud
 Start at my last prompt
+--chat-custom-max-width

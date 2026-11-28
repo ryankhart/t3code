@@ -10,6 +10,7 @@ import {
 import { selectThreadPanelOpen, useRightPanelStore } from "../../rightPanelStore";
 import { observeResize } from "../../lib/observeResize";
 import type { ScopedThreadRef } from "@t3tools/contracts";
+import type { ChatAlignment } from "@t3tools/contracts/settings";
 
 function panelWidthTransitions(element: HTMLElement) {
   const panels = element
@@ -53,12 +54,14 @@ export function ChatCanvas({
   composerOverlayElement,
   detailsCardTopInset = 0,
   rightPanelOpen,
+  alignment = "center",
   children,
   ...props
 }: Omit<ComponentProps<"div">, "className" | "style" | "ref"> & {
   store: ChatCanvasStore;
   /** Beside the canvas, so it decides which remembered width the first layout uses. */
   rightPanelOpen: boolean;
+  alignment?: ChatAlignment;
   /** The thread whose details card sits on the canvas; other threads' measurements are stale. */
   threadRef: ScopedThreadRef | null;
   /** The thread's mini player while it renders on this canvas. */
@@ -158,6 +161,7 @@ export function ChatCanvas({
     threadRef,
     preview,
     detailsCardInlineOpen,
+    alignment,
   });
   const context = {
     container: model.container,
@@ -178,6 +182,15 @@ export function ChatCanvas({
           "--html-preview-lane-width": `${layout.htmlPreview.width}px`,
         }
       : null;
+  // The lane is centered between its insets, so a start-aligned lane gets the pane's spare
+  // width as end inset. The percentages are the canvas's width wherever the inset is used,
+  // which keeps the lane still while a panel beside the chat opens or closes.
+  const laneInsetEnd =
+    alignment === "start"
+      ? `calc(${layout.chat.insetEnd}px + max(0px, 100% - ${
+          layout.chat.insetStart + layout.chat.insetEnd
+        }px - var(--chat-lane-gutters) - var(--chat-content-max-width)))`
+      : `${layout.chat.insetEnd}px`;
   return (
     <ChatCanvasContext value={context}>
       <div
@@ -190,7 +203,7 @@ export function ChatCanvas({
           {
             "--chat-timeline-gutter": `${measurements.timelineGutter}px`,
             "--chat-lane-inset-start": `${layout.chat.insetStart}px`,
-            "--chat-lane-inset-end": `${layout.chat.insetEnd}px`,
+            "--chat-lane-inset-end": laneInsetEnd,
             ...htmlPreviewLane,
           } as CSSProperties
         }
@@ -198,7 +211,7 @@ export function ChatCanvas({
         <div
           ref={widthProbeRef}
           aria-hidden
-          className="pointer-events-none invisible absolute h-0 w-(--chat-content-max-width) min-w-[40rem] box-content ps-3 sm:ps-12"
+          className="pointer-events-none invisible absolute h-0 w-(--chat-content-max-width) min-w-(--chat-content-min-width) box-content ps-3 sm:ps-12"
         />
         <div
           ref={htmlPreviewWidthProbeRef}

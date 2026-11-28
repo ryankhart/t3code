@@ -400,6 +400,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("wide full width column layout messages composer monitor")],
   },
   {
+    id: "chat-alignment",
+    title: msg("Chat alignment"),
+    to: "/settings/appearance",
+    searchTerms: [msg("left center centered align column layout side panel browser shift")],
+  },
+  {
     id: "html-preview-width",
     title: msg("HTML preview width"),
     to: "/settings/appearance",

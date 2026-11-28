@@ -53,6 +53,7 @@ import { useClientSettings, useTabsEnabled } from "~/hooks/useSettings";
 import { textDirection } from "~/textDirection";
 import { ComputerViewDialog } from "../computers/ComputerViewDialog";
 import { Button } from "../ui/button";
+import { ChatLayoutControl } from "./ChatLayoutControl";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { GuestShareIndicator } from "./GuestShareControls";
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
@@ -506,6 +507,12 @@ export const ChatHeader = memo(function ChatHeader({
         />
       ) : draftId !== undefined ? (
         <DraftHeaderActions onOpenMenu={openDraftMenu} />
+      ) : null}
+      {isServerThread ? (
+        // A narrow window's chat column already fills the pane, so there is nothing to lay out.
+        <div className="hidden shrink-0 items-center sm:flex">
+          <ChatLayoutControl />
+        </div>
       ) : null}
       {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
       {supportsComputerView && (

@@ -8,6 +8,7 @@ import {
   DEFAULT_UNIFIED_SETTINGS,
   MAX_CUSTOM_APP_ICON_BYTES,
   MAX_CUSTOM_SIDEBAR_ARTWORK_BYTES,
+  type ChatAlignment,
   type ChatWidth,
   type HtmlPreviewWidth,
   type EffortDisplay,
@@ -46,6 +47,7 @@ import { AdvancedSettings } from "./AdvancedSettings";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
 import { TypographySection } from "./TypographySettings";
 import { ThreadDetailsItemsRow } from "./ThreadDetailsItemsRow";
+import { ChatWidthSlider } from "../chat/ChatLayoutControl";
 
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: msg("Artwork"),
@@ -87,6 +89,12 @@ const CHAT_WIDTH_LABELS: Record<ChatWidth, string> = {
   comfortable: msg("Comfortable"),
   wide: msg("Wide"),
   full: msg("Full", { $context: "chat width" }),
+  custom: msg("Custom", { $context: "chat width" }),
+};
+
+const CHAT_ALIGNMENT_LABELS: Record<ChatAlignment, string> = {
+  center: msg("Center", { $context: "chat alignment" }),
+  start: msg("Left", { $context: "chat alignment" }),
 };
 
 const HTML_PREVIEW_WIDTH_LABELS: Record<HtmlPreviewWidth, string> = {
@@ -281,7 +289,9 @@ export function AppearanceSettingsPanel() {
         <AppIconRow />
         <SettingsRow
           {...searchableSetting("chat-width")}
-          description={gt("Set how wide messages and the composer can grow on large screens.")}
+          description={gt(
+            "Set how wide messages and the composer can grow on large screens. Drag the slider for a custom width.",
+          )}
           resetAction={
             settings.chatWidth !== DEFAULT_UNIFIED_SETTINGS.chatWidth ? (
               <SettingResetButton
@@ -291,21 +301,69 @@ export function AppearanceSettingsPanel() {
             ) : null
           }
           control={
+            <div className="flex w-full flex-col gap-2 sm:w-88 sm:flex-row sm:items-center sm:gap-3">
+              <ChatWidthSlider id="chat-custom-width" />
+              <div className="w-full sm:w-40 sm:shrink-0">
+                <Select
+                  value={settings.chatWidth}
+                  onValueChange={(value) => {
+                    if (
+                      value === "comfortable" ||
+                      value === "wide" ||
+                      value === "full" ||
+                      value === "custom"
+                    )
+                      updateSettings({ chatWidth: value });
+                  }}
+                >
+                  <SelectTrigger size="sm" className="w-full min-w-0" aria-label={gt("Chat width")}>
+                    <SelectValue>{m(CHAT_WIDTH_LABELS[settings.chatWidth])}</SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup align="end" alignItemWithTrigger={false}>
+                    <SelectItem value="comfortable">{gt("Comfortable (default)")}</SelectItem>
+                    <SelectItem value="wide">{m(CHAT_WIDTH_LABELS.wide)}</SelectItem>
+                    <SelectItem value="full">{m(CHAT_WIDTH_LABELS.full)}</SelectItem>
+                    <SelectItem value="custom">{m(CHAT_WIDTH_LABELS.custom)}</SelectItem>
+                  </SelectPopup>
+                </Select>
+              </div>
+            </div>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("chat-alignment")}
+          description={gt(
+            "Keep the chat at the left edge of its pane, so it stays put when a side panel opens or closes.",
+          )}
+          resetAction={
+            settings.chatAlignment !== DEFAULT_UNIFIED_SETTINGS.chatAlignment ? (
+              <SettingResetButton
+                ariaLabel={gt("Reset chat alignment to default")}
+                onClick={() =>
+                  updateSettings({ chatAlignment: DEFAULT_UNIFIED_SETTINGS.chatAlignment })
+                }
+              />
+            ) : null
+          }
+          control={
             <div className="w-full sm:w-40">
               <Select
-                value={settings.chatWidth}
+                value={settings.chatAlignment}
                 onValueChange={(value) => {
-                  if (value === "comfortable" || value === "wide" || value === "full")
-                    updateSettings({ chatWidth: value });
+                  if (value === "center" || value === "start")
+                    updateSettings({ chatAlignment: value });
                 }}
               >
-                <SelectTrigger size="sm" className="w-full min-w-0" aria-label={gt("Chat width")}>
-                  <SelectValue>{m(CHAT_WIDTH_LABELS[settings.chatWidth])}</SelectValue>
+                <SelectTrigger
+                  size="sm"
+                  className="w-full min-w-0"
+                  aria-label={gt("Chat alignment")}
+                >
+                  <SelectValue>{m(CHAT_ALIGNMENT_LABELS[settings.chatAlignment])}</SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
-                  <SelectItem value="comfortable">{gt("Comfortable (default)")}</SelectItem>
-                  <SelectItem value="wide">{m(CHAT_WIDTH_LABELS.wide)}</SelectItem>
-                  <SelectItem value="full">{m(CHAT_WIDTH_LABELS.full)}</SelectItem>
+                  <SelectItem value="center">{gt("Center (default)")}</SelectItem>
+                  <SelectItem value="start">{m(CHAT_ALIGNMENT_LABELS.start)}</SelectItem>
                 </SelectPopup>
               </Select>
             </div>

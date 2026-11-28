@@ -1,3 +1,4 @@
+import type { ChatAlignment } from "@t3tools/contracts/settings";
 import {
   clampPreviewMiniPlayerPosition,
   resolvePreviewMiniPlayerFrame,
@@ -31,9 +32,12 @@ export function resolveChatCanvasLayout({
   composerHeight = 0,
   detailsCard = null,
   findBar = null,
+  alignment = "center",
 }: {
   container: PreviewMiniPlayerSize;
   preview: ChatCanvasPreview | null;
+  /** "start" keeps the chat column at the canvas's leading edge instead of its middle. */
+  alignment?: ChatAlignment;
   padding?: number;
   maxChatWidth?: number;
   maxHtmlPreviewWidth?: number;
@@ -48,12 +52,21 @@ export function resolveChatCanvasLayout({
     : container.width - padding;
   const normalWidth = Math.max(0, Math.min(centeredWidth, laneRight - padding));
   const canvasCenterLeft = (container.width - normalWidth) / 2;
-  const normalLeft = Math.max(padding, Math.min(canvasCenterLeft, laneRight - normalWidth));
+  const normalLeft =
+    alignment === "start"
+      ? padding
+      : Math.max(padding, Math.min(canvasCenterLeft, laneRight - normalWidth));
+  // The lane is centered between its insets. A start-aligned lane at its full width takes no
+  // inset from here: ChatCanvas pins it in CSS, so it holds still while the canvas resizes.
+  const insetEndFor = (left: number, width: number) =>
+    alignment === "start" && width >= centeredWidth
+      ? 0
+      : Math.max(0, container.width - left * 2 - width);
   let chat = {
     left: normalLeft,
     width: normalWidth,
     insetStart: 0,
-    insetEnd: Math.max(0, container.width - normalLeft * 2 - normalWidth),
+    insetEnd: insetEndFor(normalLeft, normalWidth),
   };
   let frame: PreviewMiniPlayerFrame | null = null;
   let overlapsChat = false;
@@ -119,7 +132,7 @@ export function resolveChatCanvasLayout({
         left,
         width,
         insetStart: 0,
-        insetEnd: Math.max(0, container.width - left * 2 - width),
+        insetEnd: insetEndFor(left, width),
       };
     };
     let nextChat = chatBeside(frame);
@@ -135,7 +148,7 @@ export function resolveChatCanvasLayout({
         left: padding,
         width,
         insetStart: 0,
-        insetEnd: Math.max(0, container.width - padding * 2 - width),
+        insetEnd: insetEndFor(padding, width),
       };
     } else if (overlapsChat) {
       const obstacles = {

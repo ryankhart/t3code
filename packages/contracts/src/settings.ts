@@ -442,8 +442,21 @@ export const LoadBalancingWeights = Schema.Record(
 
 export const DiffColorScheme = Schema.Literals(["red-green", "blue-orange"]);
 
-export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
+export const ChatWidth = Schema.Literals(["comfortable", "wide", "full", "custom"]);
 export type ChatWidth = typeof ChatWidth.Type;
+
+/** The chat column's widest size in rem while the chat width is "custom". */
+export const MIN_CHAT_CUSTOM_WIDTH_REM = 30;
+export const MAX_CHAT_CUSTOM_WIDTH_REM = 120;
+export const ChatCustomWidthRem = Schema.Int.check(
+  Schema.isBetween({ minimum: MIN_CHAT_CUSTOM_WIDTH_REM, maximum: MAX_CHAT_CUSTOM_WIDTH_REM }),
+);
+export type ChatCustomWidthRem = typeof ChatCustomWidthRem.Type;
+const DEFAULT_CHAT_CUSTOM_WIDTH_REM: ChatCustomWidthRem = 46;
+
+/** Where the chat column sits in a pane wider than it: "start" is the left edge in left-to-right languages. */
+export const ChatAlignment = Schema.Literals(["center", "start"]);
+export type ChatAlignment = typeof ChatAlignment.Type;
 
 /** How wide inline HTML previews grow: "chat" keeps them in the chat column. */
 export const HtmlPreviewWidth = Schema.Literals(["chat", "wide", "full"]);
@@ -520,6 +533,10 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed("red-green" as const)),
   ),
   chatWidth: ChatWidth.pipe(Schema.withDecodingDefault(Effect.succeed("comfortable" as const))),
+  chatCustomWidthRem: ChatCustomWidthRem.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CHAT_CUSTOM_WIDTH_REM)),
+  ),
+  chatAlignment: ChatAlignment.pipe(Schema.withDecodingDefault(Effect.succeed("center" as const))),
   htmlPreviewWidth: HtmlPreviewWidth.pipe(
     Schema.withDecodingDefault(Effect.succeed("chat" as const)),
   ),
@@ -2436,6 +2453,8 @@ export const ClientSettingsPatch = Schema.Struct({
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
   chatWidth: Schema.optionalKey(ChatWidth),
+  chatCustomWidthRem: Schema.optionalKey(ChatCustomWidthRem),
+  chatAlignment: Schema.optionalKey(ChatAlignment),
   htmlPreviewWidth: Schema.optionalKey(HtmlPreviewWidth),
   effortDisplay: Schema.optionalKey(EffortDisplay),
   loadBalancingEnabled: Schema.optionalKey(Schema.Boolean),
